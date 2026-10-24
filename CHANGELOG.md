@@ -34,17 +34,20 @@ Found by a pre-release audit and fixed before the first public release:
 
 - The `PreToolUse` hook asks before a `Write` or `Edit` to `scripts/`, `.claude/`, `.git/` or
   `.mcp.json`. The engine the hooks call, Claude Code settings, git hooks and MCP servers run later
-  without a prompt, so an unprompted edit there would become code that runs in every later session.
-  In `bypassPermissions`, `auto`, `dontAsk` or a mode it does not know, where the question may be
-  approved without being shown, it refuses the write instead. Files written through the shell are
-  outside the hooks, as before.
+  without a prompt, so an unprompted edit there would become code that runs in every later session. In
+  `bypassPermissions`, `auto`, `dontAsk` or a mode it does not know, where the question may be
+  approved without being shown, it refuses the write instead; a missing mode counts as `default`.
+  Files written through the shell are outside the hooks, as before.
 - The hook finds the workspace by identity, so a path that spells it in another case or Unicode
   normalization (macOS volumes ignore both) no longer counts as outside it and skips every check.
   Record paths are checked in their on-disk spelling, so `Signals/` no longer skips the record checks.
 - A write that lands where a guarded folder or file really is asks too, whether it goes through a
-  symlink in the workspace, another link or the target's own path. The hooks find the workspace from
-  the path they were called through, so a symlinked `scripts/` no longer turns every check off.
-- `INDEX.md` is never written through a symlink; the engine reports such a link instead.
+  symlink in the workspace, another link or the target's own path. Each path is read both with links
+  followed and with `..` collapsed first, with `~` expanded and a relative path taken from the
+  session's folder. The hooks find the workspace from the path they were called through, so a
+  symlinked `scripts/` no longer turns every check off.
+- `INDEX.md` is replaced by a new file instead of written in place, so neither a symbolic nor a hard
+  link to it is written through; a symbolic link is reported instead.
 - The workspace settings pre-approve the exact engine commands (`check`, `index`, `brief`, `next-id`,
   `slug`) instead of a wildcard that also matched `--root` pointing at any folder.
 - `install.sh` compares the home, root and release folders by identity. It refuses a path with a
@@ -53,9 +56,10 @@ Found by a pre-release audit and fixed before the first public release:
 - `install.sh` never writes through a symlinked folder in the target either (before, only a symlinked
   file was skipped), and warns with the count of files it skipped because they or a folder above them
   are symlinks. It refuses a folder it cannot enter, which before turned the target into a folder
-  under `/`. Before it writes anything, dry run included, it stops when the engine
-  (`scripts/engine.py`, `scripts/ideaengine/`) or `.claude/settings.json` is missing behind a symlink,
-  because the hooks would then do nothing.
+  under `/`, and it refuses to run without `HOME`, which before skipped the home-folder guard. Before
+  it writes anything, dry run included, it stops when the engine (`scripts/engine.py`,
+  `scripts/ideaengine/`) or `.claude/settings.json` is missing behind a symlink, because the hooks
+  would then do nothing.
 
 [Unreleased]: https://github.com/milosCvetkovicDev/panlode/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/milosCvetkovicDev/panlode/releases/tag/v0.1.0
