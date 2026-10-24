@@ -37,12 +37,22 @@ class PreWriteTest(unittest.TestCase):
 
     def test_pre_write_asks_before_editing_what_the_hooks_run(self):
         for rel in ["scripts/x.py", "scripts/ideaengine/text.py", "scripts/x.ts", ".claude/settings.json",
-                    ".claude/hooks/x.js", "Scripts/x.py", ".CLAUDE/rules/ideas.md"]:
+                    ".claude/hooks/x.js", "Scripts/x.py", ".CLAUDE/rules/ideas.md", ".git/hooks/pre-commit",
+                    ".git/config", ".GIT/hooks/post-checkout", ".mcp.json", ".MCP.json"]:
             for tool in ["Write", "Edit"]:
                 event = {"tool_name": tool, "tool_input": {"file_path": str(self.root / rel)}}
                 out = json.loads(pre_write(event, self.root).stdout)["hookSpecificOutput"]
                 self.assertEqual(out["permissionDecision"], "ask", (tool, rel))
-                self.assertIn("the hooks run", out["permissionDecisionReason"], (tool, rel))
+                self.assertIn("runs later without a prompt", out["permissionDecisionReason"], (tool, rel))
+
+    def test_pre_write_knows_the_workspace_in_another_case(self):
+        # macOS volumes are case-insensitive by default, and resolve() keeps the case as typed.
+        upper = self.root.parent / self.root.name.upper()
+        if not upper.is_dir():
+            self.skipTest("case-sensitive file system: the upper-case name is another folder here")
+        for rel, decision in [("scripts/x.py", "ask"), ("INDEX.md", "deny"), ("app.ts", "deny")]:
+            out = json.loads(pre_write(ev(upper / rel), self.root).stdout)["hookSpecificOutput"]
+            self.assertEqual(out["permissionDecision"], decision, rel)
 
     def test_pre_write_allows_markdown_notes_named_like_product_files(self):
         for rel in ["ideas/x/docker-compose-notes.md", "ideas/x/tsconfig-findings.md", "docs/plans/dockerfile-notes.md"]:
