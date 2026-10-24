@@ -31,9 +31,18 @@ class PreWriteTest(unittest.TestCase):
 
     def test_pre_write_allows(self):
         root = self.root
-        for p in [root / "signals/x.md", root / "scripts/x.py", root / "scripts/x.ts", root / ".claude/hooks/x.js",
+        for p in [root / "signals/x.md", root / "ideas/x/scripts/notes.md", root / "docs/.claude-notes.md",
                   Path("/tmp/elsewhere.ts")]:
             self.assertEqual(pre_write(ev(p), root), HookResult(), p)
+
+    def test_pre_write_asks_before_editing_what_the_hooks_run(self):
+        for rel in ["scripts/x.py", "scripts/ideaengine/text.py", "scripts/x.ts", ".claude/settings.json",
+                    ".claude/hooks/x.js", "Scripts/x.py", ".CLAUDE/rules/ideas.md"]:
+            for tool in ["Write", "Edit"]:
+                event = {"tool_name": tool, "tool_input": {"file_path": str(self.root / rel)}}
+                out = json.loads(pre_write(event, self.root).stdout)["hookSpecificOutput"]
+                self.assertEqual(out["permissionDecision"], "ask", (tool, rel))
+                self.assertIn("the hooks run", out["permissionDecisionReason"], (tool, rel))
 
     def test_pre_write_allows_markdown_notes_named_like_product_files(self):
         for rel in ["ideas/x/docker-compose-notes.md", "ideas/x/tsconfig-findings.md", "docs/plans/dockerfile-notes.md"]:

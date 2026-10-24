@@ -146,7 +146,7 @@ Four Claude Code hooks call the engine, so the rules are enforced by code rather
 | Hook | What the engine does |
 |---|---|
 | `SessionStart` | Prints the brief: counts, WIP, days since the last signal and the last experiment log. |
-| `PreToolUse` (Write, Edit) | Refuses product code in the workspace, hand edits to the generated `INDEX.md`, and a write that would overwrite a record with a different id. If `python3` is missing or too old, the write is blocked too. |
+| `PreToolUse` (Write, Edit) | Refuses product code in the workspace, hand edits to the generated `INDEX.md`, and a write that would overwrite a record with a different id. Asks you before any edit to `scripts/` or `.claude/`, the code and settings the hooks run. If `python3` is missing or too old, the write is blocked too. |
 | `PostToolUse` (Write, Edit) | Validates the record just written and shows any error to Claude at once; regenerates `INDEX.md`. |
 | `Stop` | Runs the full check before Claude finishes, and blocks once if errors remain (files written through the shell skip the per-file check). |
 
