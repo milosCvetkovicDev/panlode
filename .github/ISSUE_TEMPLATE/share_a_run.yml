@@ -6,9 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Run reports show what works and what does not, and they shape the next recipes and rules.
-        Share only what you are happy to make public: no customer names, no personal data of private
-        individuals, nothing under an NDA.
+        Run reports show what works and what does not, and they help decide the next recipes and rules.
+        This issue is public, and edits stay visible in its history. Summarise in your own words: no
+        personal data about anyone, no usernames, contact details or links to individual posts, no
+        quoted forum or review text, no customer names, keys or tokens, nothing under an NDA. An idea
+        you describe here becomes public.
   - type: textarea
     id: focus
     attributes:
@@ -20,16 +22,23 @@ body:
     id: result
     attributes:
       label: What it found
-      description: How many signals, their evidence scores, the clusters, and any idea shaped or killed.
+      description: How many signals, their evidence scores, the clusters, and any idea shaped or killed. A summary, not the raw signals.
     validations:
       required: true
   - type: textarea
     id: friction
     attributes:
       label: What got in the way
-      description: A rule that was too strict or too loose, a recipe that came back empty, a check that was wrong.
+      description: A rule that was too strict or too loose, a recipe that came back empty. Something broken goes in a bug report instead.
   - type: input
     id: link
     attributes:
       label: Public link (optional)
       description: A public repository or write-up of the run, if there is one.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report holds no personal data, contact details, quoted third-party text, credentials or NDA material.
+          required: true
