@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 scripts/engine.py *)",
+      "Bash(python3 scripts/engine.py check)",
+      "Bash(python3 scripts/engine.py index)",
+      "Bash(python3 scripts/engine.py brief)",
+      "Bash(python3 scripts/engine.py next-id *)",
+      "Bash(python3 scripts/engine.py slug *)",
       "Bash(python3 -I -m unittest discover -s scripts/tests -t scripts)",
       "WebSearch",
       "WebFetch(domain:reddit.com)",

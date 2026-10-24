@@ -155,6 +155,48 @@ class InstallTest(unittest.TestCase):
             self.assertIn("refusing", result.stderr)
         self.assertEqual(list(home.iterdir()), [])
 
+    def test_dotdot_after_a_missing_folder_is_refused(self):
+        # resolve() cannot cd into a folder that does not exist, so a later .. stayed in the path and slipped
+        # past the home and release guards, which compare strings.
+        home = self.tmp / "home"
+        home.mkdir()
+        runs = [(f"{home}/nx/..",), (f"{home}/nx/../..",), ("--dry-run", f"{REPO}/nx/..")]
+        for *options, target in runs:
+            result = run_install(*options, target, env_extra={"HOME": str(home)})
+            self.assertEqual(result.returncode, 2, f"{target}: {result.stdout}{result.stderr}")
+            self.assertIn("does not exist yet", result.stderr, target)
+        self.assertEqual(list(home.iterdir()), [])
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["home"])
+        self.assertFalse((REPO / "nx").exists())
+
+    def test_newline_in_the_target_is_refused(self):
+        # $(dirname) strips a trailing newline, so "..<newline>" below a missing folder turned into a real ..
+        home = self.tmp / "home"
+        (home / "Documents").mkdir(parents=True)
+        result = run_install(f"{home}/Documents/..\n/.", env_extra={"HOME": str(home)})
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("newline", result.stderr)
+        self.assertEqual(sorted(p.name for p in home.iterdir()), ["Documents"])
+
+    def test_home_and_release_spelled_in_another_case_are_refused(self):
+        # macOS volumes are case-insensitive by default, and pwd -P keeps the case as typed.
+        home = self.tmp / "home"
+        home.mkdir()
+        if not (self.tmp / "HOME").is_dir():
+            self.skipTest("case-sensitive file system: HOME and home are different folders here")
+        runs = [(self.tmp / "HOME",), (self.tmp / "Home" / ".",), ("--dry-run", REPO.parent / REPO.name.upper() / "x")]
+        for *options, target in runs:
+            result = run_install(*options, str(target), env_extra={"HOME": str(home)})
+            self.assertEqual(result.returncode, 1, f"{target}: {result.stdout}{result.stderr}")
+            self.assertIn("refusing", result.stderr, target)
+        self.assertEqual(list(home.iterdir()), [])
+
+    def test_dotdot_through_existing_folders_still_works(self):
+        (self.tmp / "clone").mkdir()
+        result = run_install("--dry-run", "../ideas", cwd=self.tmp / "clone")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("add CLAUDE.md", result.stdout)
+
     def test_target_inside_the_release_is_refused(self):
         for target in (TEMPLATE, TEMPLATE / "nested", REPO):
             result = run_install("--dry-run", str(target))
@@ -213,6 +255,130 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
         self.assertFalse((self.tmp / "nowhere.md").exists())
         self.assertIn("skip .claude/rules/signals.md (symlink", result.stdout)
+
+    def test_symlinked_folders_in_the_target_are_never_written_through(self):
+        target = self.tmp / "w"
+        self.assertEqual(run_install(str(target)).returncode, 0)
+        shared = self.tmp / "shared-rules"
+        shutil.copytree(target / ".claude" / "rules", shared)
+        (shared / "signals.md").write_text("mine\n", encoding="utf-8")  # differs: --force would update it
+        (shared / "ideas.md").unlink()  # missing: a plain install would add it
+        shutil.rmtree(target / ".claude" / "rules")
+        (target / ".claude" / "rules").symlink_to(shared, target_is_directory=True)
+        before = tree_digest(shared)
+        for args in (["--force", str(target)], [str(target)]):
+            result = run_install(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(tree_digest(shared), before, args)
+            self.assertIn("skip .claude/rules/ideas.md (symlinked folder", result.stdout, args)
+            # One skip line among forty is easy to miss when the skipped files carry an update.
+            rules = len(list((TEMPLATE / ".claude" / "rules").rglob("*.md")))  # not a stray .DS_Store
+            self.assertIn(f"warning: {rules} file(s) were neither installed nor updated because they or a folder "
+                          "above them are symlinks", result.stderr, args)
+
+    def test_hooks_are_not_wired_to_an_engine_behind_a_dangling_symlink(self):
+        # The hooks exit quietly when the engine is missing, so every guard would be off. The dry run must
+        # announce the same refusal as the real run.
+        target = self.tmp / "w"
+        target.mkdir()
+        (target / "scripts").symlink_to(self.tmp / "gone", target_is_directory=True)
+        for options in (["--dry-run"], []):
+            result = run_install(*options, str(target))
+            self.assertEqual(result.returncode, 1, f"{options}: {result.stdout}{result.stderr}")
+            self.assertIn("is missing behind a symlink", result.stderr, options)
+        self.assertFalse((target / ".claude" / "settings.json").exists())
+        self.assertFalse((self.tmp / "gone").exists())
+
+    def test_hooks_are_not_wired_to_an_engine_without_its_package(self):
+        shared = self.tmp / "shared-scripts"
+        shared.mkdir()
+        (shared / "engine.py").write_text("print('mine')\n", encoding="utf-8")
+        target = self.tmp / "w"
+        target.mkdir()
+        (target / "scripts").symlink_to(shared, target_is_directory=True)
+        result = run_install(str(target))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("is missing behind a symlink", result.stderr)
+        self.assertFalse((target / ".claude" / "settings.json").exists())
+        self.assertEqual(sorted(p.name for p in shared.iterdir()), ["engine.py"])
+
+    def test_a_symlinked_claude_folder_without_settings_fails_loudly(self):
+        target = self.tmp / "w"
+        self.assertEqual(run_install(str(target)).returncode, 0)
+        shared = self.tmp / "shared-claude"
+        shutil.move(str(target / ".claude"), shared)
+        (shared / "settings.json").unlink()
+        (target / ".claude").symlink_to(shared, target_is_directory=True)
+        before = sorted(shared.rglob("*"))
+        for options in (["--dry-run"], []):
+            result = run_install(*options, str(target))
+            self.assertEqual(result.returncode, 1, f"{options}: {result.stdout}{result.stderr}")
+            self.assertIn("no hook is wired", result.stderr, options)
+        self.assertEqual(sorted(shared.rglob("*")), before)
+
+    def test_a_dangling_symlink_target_is_refused(self):
+        # A link that is not followed passes every guard, wherever it points.
+        link = self.tmp / "dang"
+        link.symlink_to(REPO / "nx", target_is_directory=True)
+        for target in (link, link / "sub"):
+            result = run_install("--dry-run", str(target))
+            self.assertEqual(result.returncode, 2, f"{target}: {result.stdout}{result.stderr}")
+            self.assertIn("symlink to a folder that does not exist", result.stderr, target)
+        self.assertFalse((REPO / "nx").exists())
+
+    def test_a_symlinked_file_counts_in_the_warning(self):
+        target = self.tmp / "w"
+        self.assertEqual(run_install(str(target)).returncode, 0)
+        mine = self.tmp / "my-engine.py"
+        shutil.move(str(target / "scripts" / "engine.py"), mine)
+        (target / "scripts" / "engine.py").symlink_to(mine)
+        result = run_install("--force", str(target))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("skip scripts/engine.py (symlink", result.stdout)
+        self.assertIn("warning: 1 file(s) were neither installed nor updated", result.stderr)
+
+    @unittest.skipIf(os.geteuid() == 0, "root can enter any folder")
+    def test_a_folder_that_cannot_be_entered_is_refused(self):
+        # cd fails inside $( ), where set -e is off, so the path used to collapse to /<rest>.
+        locked = self.tmp / "locked"
+        (locked / "h").mkdir(parents=True)
+        locked.chmod(0o600)
+        try:
+            result = run_install("--dry-run", str(locked / "newws"))
+            home = run_install("--dry-run", str(self.tmp / "w"), env_extra={"HOME": str(locked / "h")})
+        finally:
+            locked.chmod(0o700)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("cannot enter", result.stderr)
+        self.assertEqual(planned(result.stdout), [])
+        result = home
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("HOME (", result.stderr)
+
+    def test_a_home_that_cannot_be_resolved_is_named_as_home(self):
+        dang = self.tmp / "dang-home"
+        dang.symlink_to(self.tmp / "unmounted", target_is_directory=True)
+        result = run_install("--dry-run", str(self.tmp / "w"), env_extra={"HOME": str(dang)})
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(f"HOME ({dang})", result.stderr)
+        self.assertIn("set HOME to your home folder", result.stderr)
+
+    def test_an_unset_or_empty_home_is_refused(self):
+        for home in [None, ""]:
+            env = {k: v for k, v in os.environ.items() if k != "HOME"}
+            if home is not None:
+                env["HOME"] = home
+            result = subprocess.run([BASH, str(INSTALL), "--dry-run", str(self.tmp / "w")], capture_output=True,
+                                    text=True, env={**env, "PYTHONDONTWRITEBYTECODE": "1"}, timeout=60)
+            self.assertEqual(result.returncode, 2, (home, result.stdout + result.stderr))
+            self.assertIn("HOME is not set", result.stderr)
+            self.assertEqual(planned(result.stdout), [])
+
+    def test_a_folder_under_the_root_is_spelled_with_one_slash(self):
+        top = f"/ie-no-such-home-{os.getpid()}"
+        result = run_install("--dry-run", top, env_extra={"HOME": f"{top}/me"})
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"into {top}: a parent of your home folder", result.stderr)
 
     def test_local_state_in_the_template_is_never_installed(self):
         release = self.tmp / "release"

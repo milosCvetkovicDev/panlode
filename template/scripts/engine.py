@@ -5,6 +5,7 @@ Standard library only. Runs as `python3 scripts/engine.py ...` (Python 3.10 or n
 """
 
 import argparse
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -17,7 +18,8 @@ from ideaengine.report import render_brief  # noqa: E402
 from ideaengine.text import slugify  # noqa: E402
 from ideaengine.workspace import check, load, next_id  # noqa: E402
 
-DEFAULT_ROOT = Path(__file__).resolve().parent.parent
+# Not resolved: scripts/ may be a symlink, and the workspace is the folder the engine was called through.
+DEFAULT_ROOT = Path(os.path.normpath(os.path.abspath(__file__))).parent.parent
 HOOKS = ("pre-write", "post-write", "stop", "session-start")
 
 
@@ -55,7 +57,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{errors} error(s), {len(issues) - errors} warning(s)")
         return 1 if errors else 0
     if args.command == "index":
-        print("INDEX.md updated" if write_index(root) else "INDEX.md unchanged")
+        try:
+            changed = write_index(root)
+        except OSError as e:
+            print(f"engine.py: {e}", file=sys.stderr)
+            return 1
+        print("INDEX.md updated" if changed else "INDEX.md unchanged")
         return 0
     if args.command == "brief":
         print(render_brief(load(root)[0], args.today or date.today()), end="")

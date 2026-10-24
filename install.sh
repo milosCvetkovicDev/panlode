@@ -5,8 +5,8 @@
 #
 # Without --force no existing file is touched. --force refreshes engine files only (scripts/,
 # .claude/agents/, .claude/rules/, .claude/skills/, templates/) in an existing workspace; your CLAUDE.md,
-# founder/ files, .claude/settings.json and records are never overwritten. A symlink in the target is
-# never written through. --dry-run prints the plan and writes nothing.
+# founder/ files, .claude/settings.json and records are never overwritten. A symlink in the target, file
+# or folder, is never written through. --dry-run prints the plan and writes nothing.
 # Works with the bash 3.2 that ships with macOS.
 set -euo pipefail
 
@@ -59,6 +59,15 @@ case "$target" in
     exit 2
     ;;
 esac
+# $(dirname) and $(basename) strip trailing newlines, so a name ending in one would change the path.
+newline='
+'
+case "$target" in
+  *"$newline"*)
+    echo "install.sh: the target path contains a newline; pass a plain path" >&2
+    exit 2
+    ;;
+esac
 
 here="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 src="$here/template"
@@ -73,12 +82,33 @@ fi
 
 # Absolute physical path of a folder that may not exist yet.
 resolve() {
-  local path="$1" rest=""
+  local path="$1" rest="" base
   while [ ! -d "$path" ]; do
+    # A link that leads to no folder is not followed here, so it would pass every guard below.
+    if [ -L "$path" ]; then
+      echo "install.sh: $path is a symlink to a folder that does not exist; pass a plain path" >&2
+      exit 2
+    fi
     rest="/$(basename -- "$path")$rest"
     path="$(dirname -- "$path")"
   done
-  printf '%s%s\n' "$(CDPATH='' cd -- "$path" && pwd -P)" "$rest"
+  # A .. below a missing folder can be neither resolved by cd nor compared by identity, so it would slip
+  # past the guards below.
+  case "$rest/" in
+    */../*)
+      echo "install.sh: $1 has a .. after a folder that does not exist yet; pass a plain path" >&2
+      exit 2
+      ;;
+  esac
+  # Checked by hand: set -e is off inside $( ), and an empty base would turn the path into /<rest>.
+  if ! base="$(CDPATH='' cd -- "$path" && pwd -P)"; then
+    echo "install.sh: cannot enter $path; check its permissions or pass another path" >&2
+    exit 2
+  fi
+  if [ "$base" = "/" ] && [ -n "$rest" ]; then
+    base=""
+  fi
+  printf '%s%s\n' "$base" "$rest"
 }
 
 refuse() {
@@ -86,23 +116,49 @@ refuse() {
   exit 1
 }
 
+# Compared by identity (-ef: same device and inode) as well as by spelling: macOS volumes are
+# case-insensitive by default, so one folder has many spellings.
+same_folder() {
+  [ "$1" = "$2" ] || { [ -e "$1" ] && [ "$1" -ef "$2" ]; }
+}
+
+# True when the folder $2 is the absolute path $1 or one of the folders above it.
+at_or_above() {
+  local dir="$1" up
+  while :; do
+    if same_folder "$dir" "$2"; then
+      return 0
+    fi
+    up="$(dirname -- "$dir")"
+    if [ "$up" = "$dir" ]; then  # the top: / (or // where that is a root of its own)
+      return 1
+    fi
+    dir="$up"
+  done
+}
+
 # The workspace's .claude/ and CLAUDE.md would apply to every project below the target.
 abs="$(resolve "$target")"
-if [ "$abs" = "/" ]; then
+if same_folder "$abs" "/"; then
   refuse "the root folder"
 fi
-if [ -n "${HOME:-}" ]; then
-  home="$(resolve "$HOME")"
-  if [ "$abs" = "$home" ]; then
-    refuse "your home folder; pick a new folder such as $home/ideas"
-  fi
-  case "$home/" in
-    "$abs"/*) refuse "a parent of your home folder" ;;
-  esac
+if [ -z "${HOME:-}" ]; then
+  echo "install.sh: HOME is not set, so the home-folder guard cannot run; set HOME to your home folder" >&2
+  exit 2
 fi
-case "$abs/" in
-  "$here"/*) refuse "it is inside the release that holds install.sh" ;;
-esac
+if ! home="$(resolve "$HOME")"; then
+  echo "install.sh: HOME ($HOME) cannot be resolved; set HOME to your home folder and run again" >&2
+  exit 2
+fi
+if same_folder "$abs" "$home"; then
+  refuse "your home folder; pick a new folder such as $home/ideas"
+fi
+if at_or_above "$home" "$abs"; then
+  refuse "a parent of your home folder"
+fi
+if at_or_above "$abs" "$here"; then
+  refuse "it is inside the release that holds install.sh"
+fi
 if [ "$force" -eq 1 ] && { [ ! -f "$abs/scripts/engine.py" ] || [ ! -d "$abs/scripts/ideaengine" ]; }; then
   echo "install.sh: --force updates an existing workspace, and $abs is not one" \
     "(no scripts/engine.py and scripts/ideaengine/); run without --force to install" >&2
@@ -125,14 +181,52 @@ is_local_state() {
   esac
 }
 
+# True when a folder between $abs and the file is a symlink (dangling or not); mkdir -p and cp would
+# write into wherever it points.
+parent_is_symlink() {
+  local dir
+  dir="$(dirname -- "$1")"
+  while [ "$dir" != "." ]; do
+    if [ -L "$abs/$dir" ]; then
+      return 0
+    fi
+    dir="$(dirname -- "$dir")"
+  done
+  return 1
+}
+
+# True when $abs/$1 is a file now or this run adds it; nothing is written behind a symlink.
+present_after() {
+  [ -f "$abs/$1" ] || { [ ! -e "$abs/$1" ] && [ ! -L "$abs/$1" ] && ! parent_is_symlink "$1"; }
+}
+
+# The hooks exit quietly without the engine, and .claude/settings.json is what wires them, so without
+# either every guard would be off without a word. Checked before anything is written, dry run included.
+if ! present_after "scripts/engine.py" || ! present_after "scripts/ideaengine/__init__.py"; then
+  echo "install.sh: scripts/engine.py or scripts/ideaengine/ in $abs is missing behind a symlink, and the" \
+    "hooks do nothing without the engine; nothing was installed. Fix the link and run again." >&2
+  exit 1
+fi
+if ! present_after ".claude/settings.json"; then
+  echo "install.sh: .claude/settings.json in $abs is missing behind a symlink, so no hook is wired;" \
+    "nothing was installed. Fix the link and run again." >&2
+  exit 1
+fi
+
 added=0
 updated=0
 kept=0
+linked=0
 install_file() {
   local rel="$1" file="$src/$1" dest="$abs/$1"
   if [ -L "$dest" ]; then
     echo "skip $rel (symlink; never written through)"
     kept=$((kept + 1))
+    linked=$((linked + 1))
+  elif parent_is_symlink "$rel"; then
+    echo "skip $rel (symlinked folder; never written through)"
+    kept=$((kept + 1))
+    linked=$((linked + 1))
   elif [ -e "$dest" ]; then
     if cmp -s "$file" "$dest"; then
       kept=$((kept + 1))
@@ -166,6 +260,9 @@ while IFS= read -r -d '' file; do
   install_file "$rel"
 done < <(find "$src" -type f -print0 | sort -z)
 install_file ".claude/settings.json"
+if [ "$linked" -gt 0 ]; then
+  echo "warning: $linked file(s) were neither installed nor updated because they or a folder above them are symlinks (the skip lines above)" >&2
+fi
 
 generate_index=0
 if [ ! -e "$abs/INDEX.md" ] && [ ! -L "$abs/INDEX.md" ]; then

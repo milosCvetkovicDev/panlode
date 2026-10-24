@@ -54,10 +54,14 @@ cd ~/ideas && git init && git add -A && git commit -m "chore: start the idea wor
 ```
 
 The installer copies `template/` into the folder you name and **never overwrites a file that already
-exists**. It prints a line for each file it adds (`add`) or leaves alone because yours differs or is a
-symlink (`skip`), and a summary; it generates `INDEX.md` only when the folder has none. It refuses your
-home folder, the root folder and any parent of the home folder, because a workspace's `.claude/` and
-`CLAUDE.md` would then apply to every project below it. Useful options:
+exists**. It prints a line for each file it adds (`add`) or leaves alone because yours differs, it is a
+symlink or it sits in a symlinked folder (`skip`), and a summary; it generates `INDEX.md` only when the
+folder has none. It refuses your home folder, the root folder and any parent of the home folder, in any
+spelling, because a workspace's `.claude/` and `CLAUDE.md` would then apply to every project below it.
+It also refuses a path with a newline, a `..` after a folder that does not exist yet, or a dangling
+symlink. Before it writes anything, dry run included, it stops when the engine or `.claude/settings.json`
+is missing behind a symlink in the folder (a dangling `scripts/` link, say), because the hooks would
+then do nothing. Useful options:
 
 | Option | Effect |
 |---|---|
