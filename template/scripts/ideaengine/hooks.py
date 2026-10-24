@@ -73,25 +73,24 @@ def _rel_path(file_path: str, root: Path) -> str | None:
     try:
         return path.relative_to(root).as_posix()
     except ValueError:
-        pass
-    # resolve() keeps the case as typed and macOS volumes are case-insensitive by default, so look for the
-    # root among the existing folders above the path by identity.
+        return _relative_by_identity(path, root)
+
+
+def _lexical_rel(file_path: str, root: Path) -> str | None:
+    """Workspace-relative path before symlinks are followed, or None. Only feeds the ask below: a guarded
+    folder may be a link out of the workspace, and the hooks still run what is behind it."""
+    return _relative_by_identity(Path(os.path.normpath(os.path.join(root, file_path))), root)
+
+
+def _relative_by_identity(path: Path, root: Path) -> str | None:
+    # resolve() keeps a name as typed, and macOS volumes ignore case and Unicode normalization by default,
+    # so look for the root among the existing folders above the path by identity.
     for parent in path.parents:
         try:
             if parent.samefile(root):
                 return path.relative_to(parent).as_posix()
         except OSError:
             continue
-    return None
-
-
-def _lexical_rel(file_path: str, root: Path) -> str | None:
-    """Workspace-relative path before symlinks are followed, or None. Only feeds the ask below: a guarded
-    folder may be a link out of the workspace, and the hooks still run what is behind it."""
-    path = os.path.normpath(os.path.join(root, file_path))  # an absolute file_path replaces root
-    for base in {os.path.normpath(root), str(root.resolve())}:
-        if path.casefold().startswith(base.casefold().rstrip(os.sep) + os.sep):
-            return path[len(base.rstrip(os.sep)) + 1:].replace(os.sep, "/")
     return None
 
 

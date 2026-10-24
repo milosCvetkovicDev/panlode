@@ -1,4 +1,7 @@
 import json
+import shutil
+import tempfile
+import unicodedata
 import unittest
 from datetime import date
 from unittest.mock import patch
@@ -54,6 +57,20 @@ class PreWriteTest(unittest.TestCase):
         for rel in ["scripts/engine.py", ".claude/settings.json", ".git/hooks/pre-commit"]:
             out = json.loads(pre_write(ev(self.root / rel), self.root).stdout or "{}").get("hookSpecificOutput", {})
             self.assertEqual(out.get("permissionDecision"), "ask", rel)
+
+    def test_pre_write_asks_through_a_linked_folder_in_another_unicode_spelling(self):
+        # macOS volumes treat the NFC and NFD spellings of a name as one folder; a string match does not.
+        base = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, base)
+        root = base / unicodedata.normalize("NFC", "ide\u0301je")
+        root.mkdir()
+        (base / "elsewhere").mkdir()
+        (root / ".claude").symlink_to(base / "elsewhere", target_is_directory=True)
+        nfd = base / unicodedata.normalize("NFD", "ide\u0301je")
+        if not nfd.is_dir():
+            self.skipTest("normalization-sensitive file system: the NFD name is another folder here")
+        out = json.loads(pre_write(ev(nfd / ".claude" / "settings.json"), root).stdout or "{}")
+        self.assertEqual(out.get("hookSpecificOutput", {}).get("permissionDecision"), "ask")
 
     def test_pre_write_knows_the_workspace_in_another_case(self):
         # macOS volumes are case-insensitive by default, and resolve() keeps the case as typed.
