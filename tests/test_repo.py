@@ -91,6 +91,19 @@ class MarkdownLinkTest(unittest.TestCase):
                 if "--root examples/" in line:
                     self.assertIn("template/scripts/engine.py", line, f"{path.relative_to(REPO)}:{number}")
 
+    def test_issue_form_links_name_existing_forms(self):
+        forms = {f.name for f in (REPO / ".github" / "ISSUE_TEMPLATE").glob("*.yml")} - {"config.yml"}
+        for name in forms:
+            text = (REPO / ".github" / "ISSUE_TEMPLATE" / name).read_text(encoding="utf-8")
+            for key in ("name", "description", "body"):
+                self.assertRegex(text, rf"(?m)^{key}:", name)
+        linked = []
+        for path in markdown_files():
+            linked += re.findall(r"panlode/issues/new\?template=([\w.-]+)", path.read_text(encoding="utf-8"))
+        self.assertIn("share_a_run.yml", linked)
+        for name in linked:
+            self.assertIn(name, forms)
+
     def test_every_relative_link_resolves(self):
         broken = []
         for path in markdown_files():

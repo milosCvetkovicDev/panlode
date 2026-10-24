@@ -16,7 +16,7 @@ ideas and kills the weak ones with cheap experiments, before you build anything.
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-d97757.svg)](https://code.claude.com/docs/en/overview)
 
 [Quick start](#quick-start) · [How it works](#how-it-works) · [A real run](#a-real-run) ·
-[Docs](https://miloscvetkovicdev.github.io/panlode/) · [FAQ](#faq)
+[Roadmap](#roadmap) · [Docs](https://miloscvetkovicdev.github.io/panlode/) · [FAQ](#faq)
 
 </div>
 
@@ -50,6 +50,7 @@ agent is in a hurry.
 - [What it is not](#what-it-is-not)
 - [Limits](#limits)
 - [FAQ](#faq)
+- [Roadmap](#roadmap)
 - [Contributing](#contributing) · [License](#license)
 
 ## Why
@@ -238,6 +239,19 @@ records are plain Markdown. The scouting and the hooks need Claude Code.
 running out of market. A small offer someone pays for this month beats a large one nobody has paid for.
 
 More questions: [FAQ](docs/faq.md).
+
+## Roadmap
+
+Planned, in no fixed order and without dates:
+
+- **`/shape-ideas`**: turn a cluster of signals into an idea with its offer, scores and dated kill
+  criteria. Today ideas are written by hand from `templates/idea.md`.
+- **`/design-experiment`**: draft the next experiment for an idea's riskiest assumption.
+- **`/weekly-review`**: a dated review of the week's signals, contacts and decisions in `reviews/`.
+- **More scouting recipes**, and a scout for local businesses you can meet in person.
+
+Tried a run? [Share what it found](https://github.com/milosCvetkovicDev/panlode/issues/new?template=share_a_run.yml),
+including the ideas it killed. Run reports decide what comes first.
 
 ## Contributing
 
