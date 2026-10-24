@@ -166,15 +166,16 @@ class TemplateHygieneTest(unittest.TestCase):
                 if entry.startswith("Bash"):
                     self.assertIn(entry, ENGINE_RULES, path.relative_to(TEMPLATE))
 
-    def test_settings_pre_approve_only_the_exact_engine_commands(self):
+    def test_settings_pre_approve_only_exact_bash_commands(self):
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
-        engine_rules = {r for r in settings["permissions"]["allow"] if "engine.py" in r}
-        self.assertEqual(engine_rules, ENGINE_RULES)
+        bash_rules = {r for r in settings["permissions"]["allow"] if r.startswith("Bash")}
+        self.assertEqual(bash_rules, ENGINE_RULES | {"Bash(python3 -I -m unittest discover -s scripts/tests -t scripts)"})
 
     def test_wildcard_engine_rules_cannot_reach_another_root(self):
         # `next-id *` and `slug *` stay inside the workspace only because --root is refused after the subcommand.
         with tempfile.TemporaryDirectory(prefix="ie-root-") as other:
-            for args in (["next-id", "sig", "--root", other], ["slug", "x", "--root", other]):
+            for args in (["next-id", "sig", "--root", other], ["slug", "x", "--root", other],
+                         ["next-id", "sig", f"--root={other}"], ["slug", "x", "--ro", other]):
                 result = engine(*args)
                 self.assertEqual(result.returncode, 2, args)
                 self.assertIn("unrecognized arguments", result.stderr, args)
@@ -186,7 +187,7 @@ class TemplateHygieneTest(unittest.TestCase):
         for path in files:
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 for match in re.finditer(r"(\S*)engine\.py slug (\S)", line):
-                    if line[:match.start()].endswith("Bash(python3 "):
+                    if match.group(2) == "*" and line[:match.start()].endswith("Bash(python3 "):
                         continue  # a permission rule, not a command
                     where = f"{path.relative_to(REPO)}:{number}"
                     self.assertTrue(match.group(1).endswith("scripts/"), where)

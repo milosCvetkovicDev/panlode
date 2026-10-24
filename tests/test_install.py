@@ -160,8 +160,9 @@ class InstallTest(unittest.TestCase):
         # past the home and release guards, which compare strings.
         home = self.tmp / "home"
         home.mkdir()
-        for target in (f"{home}/nx/..", f"{home}/nx/../..", f"{REPO}/nx/.."):
-            result = run_install(target, env_extra={"HOME": str(home)})
+        runs = [(f"{home}/nx/..",), (f"{home}/nx/../..",), ("--dry-run", f"{REPO}/nx/..")]
+        for *options, target in runs:
+            result = run_install(*options, target, env_extra={"HOME": str(home)})
             self.assertEqual(result.returncode, 2, f"{target}: {result.stdout}{result.stderr}")
             self.assertIn("does not exist yet", result.stderr, target)
         self.assertEqual(list(home.iterdir()), [])
