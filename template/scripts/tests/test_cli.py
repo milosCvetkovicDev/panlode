@@ -43,6 +43,17 @@ class CliTest(unittest.TestCase):
         run("--root", str(root), "index")
         self.assertEqual((root / "INDEX.md").stat().st_mtime_ns, before)
 
+    def test_index_through_a_symlink_is_a_plain_error(self):
+        root = make_workspace({SIG: to_markdown(valid_signal())})
+        outside = make_workspace({"dotfile": "mine\n"}) / "dotfile"
+        (root / "INDEX.md").symlink_to(outside)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, _ = run("--root", str(root), "index")
+        self.assertEqual(code, 1)
+        self.assertIn("INDEX.md is a symlink", err.getvalue())
+        self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
+
 
 if __name__ == "__main__":
     unittest.main()

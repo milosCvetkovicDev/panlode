@@ -1,5 +1,8 @@
 import json
+import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unicodedata
 import unittest
@@ -7,7 +10,7 @@ from datetime import date
 from unittest.mock import patch
 from pathlib import Path
 
-from ideaengine.hooks import HookResult, post_write, pre_write, run_hook, session_start, stop
+from ideaengine.hooks import HookResult, post_write, pre_write, run_hook, session_start, stop, write_index
 from tests.helpers import make_workspace, to_markdown, valid_experiment, valid_signal
 
 TODAY = date(2026, 10, 23)
@@ -72,6 +75,42 @@ class PreWriteTest(unittest.TestCase):
         out = json.loads(pre_write(ev(nfd / ".claude" / "settings.json"), root).stdout or "{}")
         self.assertEqual(out.get("hookSpecificOutput", {}).get("permissionDecision"), "ask")
 
+    def test_pre_write_asks_for_the_real_target_of_a_guarded_link(self):
+        # The write names where .claude/ really is, directly or through another link, not the workspace.
+        conf = make_workspace({}).resolve()
+        (conf / "claude").mkdir()
+        (self.root / ".claude").symlink_to(conf / "claude", target_is_directory=True)
+        (self.root / "notes").symlink_to(conf, target_is_directory=True)
+        for path in [conf / "claude" / "settings.json", self.root / "notes" / "claude" / "hooks" / "x.py"]:
+            out = json.loads(pre_write(ev(path), self.root).stdout or "{}").get("hookSpecificOutput", {})
+            self.assertEqual(out.get("permissionDecision"), "ask", path)
+
+    def test_pre_write_refuses_guarded_writes_where_a_confirmation_may_not_show(self):
+        for mode, decision in [(None, "ask"), ("default", "ask"), ("acceptEdits", "ask"), ("plan", "ask"),
+                               ("bypassPermissions", "deny"), ("auto", "deny"), ("dontAsk", "deny"),
+                               ("a-future-mode", "deny"), (7, "deny")]:
+            event = ev(self.root / "scripts" / "engine.py")
+            if mode is not None:
+                event["permission_mode"] = mode
+            out = json.loads(pre_write(event, self.root).stdout)["hookSpecificOutput"]
+            self.assertEqual(out["permissionDecision"], decision, mode)
+            if decision == "deny":
+                self.assertIn("ask the user to make this edit", out["permissionDecisionReason"], mode)
+
+    def test_pre_write_checks_a_record_spelled_in_another_case(self):
+        root = make_workspace({SIG: to_markdown(valid_signal())}).resolve()
+        if not (root / SIG.upper()).is_file():
+            self.skipTest("case-sensitive file system: the upper-case name is another file here")
+        for spelling in [SIG.replace("signals/", "Signals/"), SIG.upper()]:
+            event = {"tool_name": "Write", "tool_input": {"file_path": str(root / spelling),
+                                                          "content": to_markdown(valid_signal(id="sig-0002"))}}
+            out = json.loads(pre_write(event, root).stdout or "{}").get("hookSpecificOutput", {})
+            self.assertEqual(out.get("permissionDecision"), "deny", spelling)
+        f = valid_signal()
+        del f["pain"]
+        (root / SIG).write_text(to_markdown(f), encoding="utf-8")
+        self.assertEqual(post_write(ev(root / SIG.replace("signals/", "SIGNALS/")), root).exit_code, 2)
+
     def test_pre_write_knows_the_workspace_in_another_case(self):
         # macOS volumes are case-insensitive by default, and resolve() keeps the case as typed.
         upper = self.root.parent / self.root.name.upper()
@@ -103,6 +142,26 @@ class PreWriteTest(unittest.TestCase):
         self.assertIn("could not read", r.stderr)
         for name in ["post-write", "stop", "session-start"]:
             self.assertEqual(run_hook(name, "not json", self.root, TODAY), HookResult(), name)
+
+
+class HookEntryPointTest(unittest.TestCase):
+    """The hooks run as python3 "$CLAUDE_PROJECT_DIR/scripts/engine.py" hook ..., without --root."""
+
+    def test_the_workspace_is_found_through_a_symlinked_scripts_folder(self):
+        base = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, base)
+        shutil.copytree(Path(__file__).resolve().parents[1], base / "ext" / "scripts",
+                        ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
+        root = base / "ws"
+        root.mkdir()
+        (root / "scripts").symlink_to(base / "ext" / "scripts", target_is_directory=True)
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        for rel, decision in [(".claude/settings.json", "ask"), ("INDEX.md", "deny"), ("app.ts", "deny")]:
+            run = subprocess.run([sys.executable, "-I", "-B", str(root / "scripts" / "engine.py"), "hook", "pre-write"],
+                                 input=json.dumps(ev(root / rel)), capture_output=True, text=True, env=env, cwd=root)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            out = json.loads(run.stdout or "{}").get("hookSpecificOutput", {})
+            self.assertEqual(out.get("permissionDecision"), decision, rel)
 
 
 class PostWriteTest(unittest.TestCase):
@@ -139,6 +198,18 @@ class PostWriteTest(unittest.TestCase):
         root = make_workspace({"notes.md": "hello"})
         self.assertEqual(post_write(ev(root / "notes.md"), root), HookResult())
         self.assertFalse((root / "INDEX.md").exists())
+
+
+class IndexTest(unittest.TestCase):
+    def test_write_index_never_writes_through_a_symlink(self):
+        root = make_workspace({SIG: to_markdown(valid_signal())})
+        outside = make_workspace({"dotfile": "mine\n"}) / "dotfile"
+        (root / "INDEX.md").symlink_to(outside)
+        with self.assertRaisesRegex(OSError, "INDEX.md is a symlink"):
+            write_index(root)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
+        self.assertEqual(run_hook("stop", '{"stop_hook_active": false}', root, TODAY).exit_code, 2)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
 
 
 class StopAndStartTest(unittest.TestCase):
