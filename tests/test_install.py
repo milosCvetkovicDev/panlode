@@ -270,6 +270,21 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(tree_digest(shared), before, args)
             self.assertIn("skip .claude/rules/ideas.md (symlinked folder", result.stdout, args)
+            # One skip line among forty is easy to miss when the skipped files carry an update.
+            rules = len([p for p in (TEMPLATE / ".claude" / "rules").rglob("*") if p.is_file()])
+            self.assertIn(f"warning: {rules} file(s) under symlinked folders were neither installed nor updated",
+                          result.stderr, args)
+
+    def test_hooks_are_not_wired_to_an_engine_behind_a_dangling_symlink(self):
+        # The hooks exit quietly when scripts/engine.py is missing, so every guard would be off.
+        target = self.tmp / "w"
+        target.mkdir()
+        (target / "scripts").symlink_to(self.tmp / "gone", target_is_directory=True)
+        result = run_install(str(target))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("scripts/engine.py is missing", result.stderr)
+        self.assertFalse((target / ".claude" / "settings.json").exists())
+        self.assertFalse((self.tmp / "gone").exists())
 
     def test_local_state_in_the_template_is_never_installed(self):
         release = self.tmp / "release"

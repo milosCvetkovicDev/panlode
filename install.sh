@@ -179,6 +179,7 @@ parent_is_symlink() {
 added=0
 updated=0
 kept=0
+linked=0
 install_file() {
   local rel="$1" file="$src/$1" dest="$abs/$1"
   if [ -L "$dest" ]; then
@@ -187,6 +188,7 @@ install_file() {
   elif parent_is_symlink "$rel"; then
     echo "skip $rel (symlinked folder; never written through)"
     kept=$((kept + 1))
+    linked=$((linked + 1))
   elif [ -e "$dest" ]; then
     if cmp -s "$file" "$dest"; then
       kept=$((kept + 1))
@@ -219,6 +221,15 @@ while IFS= read -r -d '' file; do
   fi
   install_file "$rel"
 done < <(find "$src" -type f -print0 | sort -z)
+if [ "$linked" -gt 0 ]; then
+  echo "warning: $linked file(s) under symlinked folders were neither installed nor updated (the skip lines above)" >&2
+fi
+# The hooks exit quietly without the engine, so every guard would be off without a word.
+if [ "$dry" -eq 0 ] && [ ! -f "$abs/scripts/engine.py" ]; then
+  echo "install.sh: $abs/scripts/engine.py is missing (is scripts/ a symlink?); .claude/settings.json was" \
+    "not installed, because the hooks would do nothing without the engine" >&2
+  exit 1
+fi
 install_file ".claude/settings.json"
 
 generate_index=0
