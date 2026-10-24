@@ -6,6 +6,7 @@ a crash inside any hook is shown to Claude rather than swallowed.
 """
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -84,6 +85,16 @@ def _rel_path(file_path: str, root: Path) -> str | None:
     return None
 
 
+def _lexical_rel(file_path: str, root: Path) -> str | None:
+    """Workspace-relative path before symlinks are followed, or None. Only feeds the ask below: a guarded
+    folder may be a link out of the workspace, and the hooks still run what is behind it."""
+    path = os.path.normpath(os.path.join(root, file_path))  # an absolute file_path replaces root
+    for base in {os.path.normpath(root), str(root.resolve())}:
+        if path.casefold().startswith(base.casefold().rstrip(os.sep) + os.sep):
+            return path[len(base.rstrip(os.sep)) + 1:].replace(os.sep, "/")
+    return None
+
+
 def _is_guarded(rel: str) -> bool:
     # The hooks run scripts/engine.py on every write and session, git runs .git/hooks, and Claude Code
     # starts what .mcp.json names, so an edit there becomes code that runs without a Bash prompt, even in
@@ -117,11 +128,13 @@ def pre_write(event: dict, root: Path) -> HookResult:
     if file_path is None:
         return HookResult(2, "", UNREADABLE_INPUT)
     rel = _rel_path(file_path, root)
+    lexical = _lexical_rel(file_path, root)
+    guarded = lexical is not None and _is_guarded(lexical)
     if rel is None:
-        return HookResult()
+        return _decision("ask", GUARDED_REASON) if guarded else HookResult()
     if rel.casefold() == INDEX_FILE.casefold():
         return _deny(INDEX_REASON)
-    if _is_guarded(rel):
+    if guarded or _is_guarded(rel):
         return _decision("ask", GUARDED_REASON)
     if _is_product_file(rel):
         return _deny(PRODUCT_REASON)

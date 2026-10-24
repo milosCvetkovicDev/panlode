@@ -45,6 +45,16 @@ class PreWriteTest(unittest.TestCase):
                 self.assertEqual(out["permissionDecision"], "ask", (tool, rel))
                 self.assertIn("runs later without a prompt", out["permissionDecisionReason"], (tool, rel))
 
+    def test_pre_write_asks_through_a_guarded_folder_that_links_elsewhere(self):
+        # resolve() follows the link out of the workspace, yet the hooks still read and run what is behind it.
+        elsewhere = make_workspace({}).resolve()
+        for name in ["scripts", ".claude", ".git"]:
+            (elsewhere / name).mkdir(exist_ok=True)
+            (self.root / name).symlink_to(elsewhere / name, target_is_directory=True)
+        for rel in ["scripts/engine.py", ".claude/settings.json", ".git/hooks/pre-commit"]:
+            out = json.loads(pre_write(ev(self.root / rel), self.root).stdout or "{}").get("hookSpecificOutput", {})
+            self.assertEqual(out.get("permissionDecision"), "ask", rel)
+
     def test_pre_write_knows_the_workspace_in_another_case(self):
         # macOS volumes are case-insensitive by default, and resolve() keeps the case as typed.
         upper = self.root.parent / self.root.name.upper()
