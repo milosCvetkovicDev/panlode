@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Panlode: evidence before code, a Claude Code workspace for validating startup ideas"
+type: software
+authors:
+  - given-names: Milos
+    family-names: Cvetkovic
+    alias: milosCvetkovicDev
+repository-code: "https://github.com/milosCvetkovicDev/panlode"
+url: "https://miloscvetkovicdev.github.io/panlode/"
+license: MIT
+keywords:
+  - claude-code
+  - ai-agents
+  - startup-ideas
+  - idea-validation
+  - customer-discovery
+  - lean-startup

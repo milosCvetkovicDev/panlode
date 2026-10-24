@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="372" viewBox="0 0 820 372" role="img" aria-labelledby="t d">
+<title id="t">Session brief and engine check</title>
+<desc id="d">The session brief for a workspace with 16 signals, then engine.py check reporting four errors in a hand-written idea: an undated kill criterion, a score total that does not add up, and two unknown ids.</desc>
+<style>text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:13.5px}.dim{fill:#8b8f98}.text{fill:#d7dae0}.bold{fill:#ffffff;font-weight:700}.cmd{fill:#ffffff}.p{fill:#7ee787}.e{fill:#ff7b72;font-weight:700}.err{fill:#d7dae0}.sum{fill:#ffa657;font-weight:700}.title{fill:#9da3ad;font-size:12.5px}</style>
+<rect width="820" height="372" rx="12" fill="#16181d"/>
+<rect width="820" height="36" rx="12" fill="#22252c"/><rect y="24" width="820" height="12" fill="#22252c"/>
+<circle cx="22" cy="18" r="6" fill="#ff5f57"/><circle cx="42" cy="18" r="6" fill="#febc2e"/><circle cx="62" cy="18" r="6" fill="#28c840"/>
+<text class="title" x="410" y="22" text-anchor="middle">~/ideas — claude</text>
+<text class="dim" x="24" y="56"># SessionStart hook: the brief Claude sees before your first message</text>
+<text class="bold" x="24" y="77">Idea engine — 2026-10-24</text>
+<text class="text" x="24" y="98">Signals: 16 (16 new) · Ideas: 0 (0/3 validating) · Experiments: 0 running, 0 planned</text>
+<text class="text" x="24" y="119">Days since last signal: 0</text>
+<text class="text" x="24" y="140">Days since last log entry: n/a</text>
+<text class="text" x="24" y="161">Minimum loop: one /scout-online per week; ≥2 prospect contacts logged per running experiment.</text>
+<text class="dim" x="24" y="203"># a hand-written idea with four mistakes</text>
+<text x="24" y="224"><tspan class="p">$ </tspan><tspan class="cmd">python3 scripts/engine.py check</tspan></text>
+<text x="24" y="245"><tspan class="e">error </tspan><tspan class="err">ideas/ci-debugging/idea.md: kill_criteria item has no date</tspan></text>
+<text x="24" y="266"><tspan class="e">error </tspan><tspan class="err">ideas/ci-debugging/idea.md: score_total is 20 but the scores sum to 19</tspan></text>
+<text x="24" y="287"><tspan class="e">error </tspan><tspan class="err">ideas/ci-debugging/idea.md: unknown id sig-0099 in signals</tspan></text>
+<text x="24" y="308"><tspan class="e">error </tspan><tspan class="err">ideas/ci-debugging/idea.md: unknown id exp-0001 in next</tspan></text>
+<text class="sum" x="24" y="329">4 error(s), 0 warning(s)</text>
+</svg>

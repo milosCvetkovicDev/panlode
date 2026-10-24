@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "panlode",
+  "description": "Validate startup ideas before you build: subagents scout forums, review sites and job posts for customer pain, a zero-dependency engine and hooks enforce evidence, and cheap experiments end in continue, pivot or kill.",
+  "owner": {
+    "name": "milosCvetkovicDev",
+    "url": "https://github.com/milosCvetkovicDev"
+  },
+  "plugins": [
+    {
+      "name": "panlode",
+      "source": "./",
+      "description": "Validate startup ideas before you build: subagents scout forums, review sites and job posts for customer pain, a zero-dependency engine and hooks enforce evidence, and cheap experiments end in continue, pivot or kill.",
+      "category": "productivity",
+      "tags": [
+        "startup",
+        "validation",
+        "customer-discovery",
+        "research"
+      ]
+    }
+  ]
+}

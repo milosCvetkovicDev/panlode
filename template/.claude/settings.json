@@ -1,0 +1,76 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/engine.py *)",
+      "Bash(python3 -I -m unittest discover -s scripts/tests -t scripts)",
+      "WebSearch",
+      "WebFetch(domain:reddit.com)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:news.ycombinator.com)",
+      "WebFetch(domain:hn.algolia.com)",
+      "WebFetch(domain:www.indiehackers.com)",
+      "WebFetch(domain:www.g2.com)",
+      "WebFetch(domain:www.capterra.com)",
+      "WebFetch(domain:www.trustpilot.com)",
+      "WebFetch(domain:www.peerspot.com)",
+      "WebFetch(domain:www.upwork.com)",
+      "WebFetch(domain:www.freelancer.com)",
+      "WebFetch(domain:www.peopleperhour.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.producthunt.com)",
+      "WebFetch(domain:dev.to)"
+    ],
+    "deny": [
+      "Edit(library/**)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" ] || exit 0; python3 \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" hook session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" ] || exit 0; python3 \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" hook pre-write",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" ] || exit 0; python3 \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" hook post-write",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" ] || exit 0; python3 \"$CLAUDE_PROJECT_DIR/scripts/engine.py\" hook stop",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in the engine, the hooks, the skills or the installer does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran or asked Claude to do, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of records or commands that shows the problem. Remove any personal data.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The output of `python3 scripts/engine.py check`, or the hook message Claude showed.
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`python3 --version`, `claude --version`, your OS, and the commit or release you installed from."
+    validations:
+      required: true

@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+# Anywhere, template/ included: install.sh would otherwise ship a maintainer's local state.
+**/.claude/settings.local.json
+**/.claude/checkpoints/
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata

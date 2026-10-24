@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+        include:
+          # /bin/bash on macOS is bash 3.2, the oldest shell install.sh supports. The repository tests and
+          # the install step below call it by path, so a newer bash earlier on PATH cannot hide a break.
+          - os: macos-latest
+            python: '3.14'
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: tree:0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Engine unit tests
+        working-directory: template
+        run: python -I -m unittest discover -s scripts/tests -t scripts
+      - name: Repository tests (installer, example run, links, template hygiene)
+        run: python -m unittest discover -s tests -t . -v
+      - name: Install into a fresh folder and check it
+        shell: bash
+        run: |
+          /bin/bash -c 'echo "install.sh runs under bash $BASH_VERSION"'
+          if [ "$RUNNER_OS" = macOS ]; then /bin/bash -c '[ "${BASH_VERSINFO[0]}" -eq 3 ]'; fi
+          /bin/bash ./install.sh "$RUNNER_TEMP/workspace"
+          python -I "$RUNNER_TEMP/workspace/scripts/engine.py" --root "$RUNNER_TEMP/workspace" check
+          python -I "$RUNNER_TEMP/workspace/scripts/engine.py" --root "$RUNNER_TEMP/workspace" brief

@@ -1,0 +1,57 @@
+# GitHub Pages site for Panlode (Just the Docs theme, SEO tags, sitemap).
+title: Panlode
+description: >-
+  Evidence before code. A Claude Code workspace that scouts real customer pain on forums, review sites
+  and job boards, turns it into startup ideas and validates them with cheap, dated experiments.
+url: https://miloscvetkovicdev.github.io
+baseurl: /panlode
+lang: en
+logo: /assets/logo.svg
+image: /assets/social-preview.png
+
+author:
+  name: milosCvetkovicDev
+  url: https://github.com/milosCvetkovicDev
+twitter:
+  card: summary_large_image
+social:
+  name: Panlode
+  links:
+    - https://github.com/milosCvetkovicDev/panlode
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: false
+
+search_enabled: true
+heading_anchors: true
+color_scheme: light
+mermaid:
+  version: "11.17.2"
+
+aux_links:
+  GitHub: https://github.com/milosCvetkovicDev/panlode
+aux_links_new_tab: true
+
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/milosCvetkovicDev/panlode
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: edit
+
+footer_content: >-
+  MIT licensed. Built for <a href="https://code.claude.com/docs/en/overview">Claude Code</a>.
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /assets/social-preview.png

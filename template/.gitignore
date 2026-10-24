@@ -1,0 +1,8 @@
+.DS_Store
+library/*
+!library/README.md
+.claude/settings.local.json
+.claude/checkpoints/
+__pycache__/
+*.pyc
+founder/*.pdf

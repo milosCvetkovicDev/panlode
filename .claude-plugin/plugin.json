@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "panlode",
+  "displayName": "Panlode",
+  "version": "0.1.0",
+  "description": "Validate startup ideas before you build: subagents scout forums, review sites and job posts for customer pain, a zero-dependency engine and hooks enforce evidence, and cheap experiments end in continue, pivot or kill.",
+  "author": {
+    "name": "milosCvetkovicDev",
+    "url": "https://github.com/milosCvetkovicDev"
+  },
+  "homepage": "https://miloscvetkovicdev.github.io/panlode/",
+  "repository": "https://github.com/milosCvetkovicDev/panlode",
+  "license": "MIT",
+  "keywords": [
+    "startup-ideas",
+    "idea-validation",
+    "customer-discovery",
+    "lean-startup",
+    "mom-test",
+    "market-research",
+    "indie-hackers",
+    "founder-tools",
+    "subagents",
+    "hooks"
+  ],
+  "skills": "./plugin/skills"
+}

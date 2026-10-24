@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>social preview</title>
+<style>
+  html,body{margin:0;width:1280px;height:640px;overflow:hidden}
+  body{background:radial-gradient(circle at 85% 20%,#2a2320 0,#16181d 55%);color:#f0eee6;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;position:relative}
+  .wrap{position:absolute;inset:72px 80px;display:flex;flex-direction:column;justify-content:space-between}
+  .head{display:flex;align-items:center;gap:32px}
+  .head img{width:120px;height:120px}
+  h1{font-size:84px;line-height:1;margin:0;letter-spacing:-1.5px}
+  .tag{font-size:44px;font-weight:700;color:#d97757;margin:28px 0 14px}
+  p{font-size:28px;line-height:1.4;color:#c9ccd3;margin:0;max-width:1040px}
+  .flow{display:flex;align-items:center;gap:12px;white-space:nowrap;font:600 22px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .flow span.box{border:2px solid #3a3e47;border-radius:10px;padding:10px 16px;background:#1d2026}
+  .flow span.arrow{color:#d97757}
+  .flow span.end{border-color:#d97757;color:#ffd7c6}
+</style></head>
+<body><div class="wrap">
+  <div>
+    <div class="head"><img src="../logo.svg" alt=""><h1>Panlode</h1></div>
+    <div class="tag">Evidence before code.</div>
+    <p>A Claude Code workspace that scouts real customer pain, scores the evidence and kills weak
+       startup ideas with cheap experiments, before you build.</p>
+  </div>
+  <div class="flow">
+    <span class="box">signals</span><span class="arrow">→</span>
+    <span class="box">idea</span><span class="arrow">→</span>
+    <span class="box">experiment ≤ 100 € · 14 days</span><span class="arrow">→</span>
+    <span class="box end">continue · pivot · kill</span>
+  </div>
+</div></body></html>

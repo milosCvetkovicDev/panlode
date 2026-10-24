@@ -1,0 +1,22 @@
+name: Feature or recipe request
+description: Suggest an improvement, a new scouting recipe or a change to a rule.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What gets in your way today when you scout, shape or test ideas?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change? For a new recipe, name the public sources and why they carry signals.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
