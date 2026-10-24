@@ -155,6 +155,25 @@ class InstallTest(unittest.TestCase):
             self.assertIn("refusing", result.stderr)
         self.assertEqual(list(home.iterdir()), [])
 
+    def test_dotdot_after_a_missing_folder_is_refused(self):
+        # resolve() cannot cd into a folder that does not exist, so a later .. stayed in the path and slipped
+        # past the home and release guards, which compare strings.
+        home = self.tmp / "home"
+        home.mkdir()
+        for target in (f"{home}/nx/..", f"{home}/nx/../..", f"{REPO}/nx/.."):
+            result = run_install(target, env_extra={"HOME": str(home)})
+            self.assertEqual(result.returncode, 2, f"{target}: {result.stdout}{result.stderr}")
+            self.assertIn("does not exist yet", result.stderr, target)
+        self.assertEqual(list(home.iterdir()), [])
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["home"])
+        self.assertFalse((REPO / "nx").exists())
+
+    def test_dotdot_through_existing_folders_still_works(self):
+        (self.tmp / "clone").mkdir()
+        result = run_install("--dry-run", "../ideas", cwd=self.tmp / "clone")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("add CLAUDE.md", result.stdout)
+
     def test_target_inside_the_release_is_refused(self):
         for target in (TEMPLATE, TEMPLATE / "nested", REPO):
             result = run_install("--dry-run", str(target))
@@ -213,6 +232,22 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
         self.assertFalse((self.tmp / "nowhere.md").exists())
         self.assertIn("skip .claude/rules/signals.md (symlink", result.stdout)
+
+    def test_symlinked_folders_in_the_target_are_never_written_through(self):
+        target = self.tmp / "w"
+        self.assertEqual(run_install(str(target)).returncode, 0)
+        shared = self.tmp / "shared-rules"
+        shutil.copytree(target / ".claude" / "rules", shared)
+        (shared / "signals.md").write_text("mine\n", encoding="utf-8")  # differs: --force would update it
+        (shared / "ideas.md").unlink()  # missing: a plain install would add it
+        shutil.rmtree(target / ".claude" / "rules")
+        (target / ".claude" / "rules").symlink_to(shared, target_is_directory=True)
+        before = tree_digest(shared)
+        for args in (["--force", str(target)], [str(target)]):
+            result = run_install(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(tree_digest(shared), before, args)
+            self.assertIn("skip .claude/rules/ideas.md (symlinked folder", result.stdout, args)
 
     def test_local_state_in_the_template_is_never_installed(self):
         release = self.tmp / "release"

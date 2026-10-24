@@ -28,5 +28,18 @@ All notable changes to this project are documented here. The format follows
 - Documentation site with a comparison page, and CI on Python 3.10 to 3.15 (Linux) and on macOS with
   its bash 3.2.
 
+### Security
+
+Found by a pre-release audit and fixed before the first public release:
+
+- The `PreToolUse` hook asks before any edit to `scripts/` or `.claude/`. The hooks run that code and
+  those settings, so an unprompted edit there would become code that runs in every later session.
+- The workspace settings pre-approve the exact engine commands (`check`, `index`, `brief`, `next-id`,
+  `slug`) instead of a wildcard that also matched `--root` pointing at any folder.
+- `install.sh` refuses a path with a `..` after a folder that does not exist yet. Before, such a path
+  slipped past the home-folder guard.
+- `install.sh` never writes through a symlinked folder in the target either; before, only a symlinked
+  file was skipped.
+
 [Unreleased]: https://github.com/milosCvetkovicDev/panlode/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/milosCvetkovicDev/panlode/releases/tag/v0.1.0

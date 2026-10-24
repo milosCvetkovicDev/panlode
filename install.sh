@@ -5,8 +5,8 @@
 #
 # Without --force no existing file is touched. --force refreshes engine files only (scripts/,
 # .claude/agents/, .claude/rules/, .claude/skills/, templates/) in an existing workspace; your CLAUDE.md,
-# founder/ files, .claude/settings.json and records are never overwritten. A symlink in the target is
-# never written through. --dry-run prints the plan and writes nothing.
+# founder/ files, .claude/settings.json and records are never overwritten. A symlink in the target, file
+# or folder, is never written through. --dry-run prints the plan and writes nothing.
 # Works with the bash 3.2 that ships with macOS.
 set -euo pipefail
 
@@ -78,6 +78,13 @@ resolve() {
     rest="/$(basename -- "$path")$rest"
     path="$(dirname -- "$path")"
   done
+  # A .. below a missing folder cannot be resolved by cd and would slip past the string guards below.
+  case "$rest/" in
+    */../*)
+      echo "install.sh: $1 has a .. after a folder that does not exist yet; pass a plain path" >&2
+      exit 2
+      ;;
+  esac
   printf '%s%s\n' "$(CDPATH='' cd -- "$path" && pwd -P)" "$rest"
 }
 
@@ -125,6 +132,20 @@ is_local_state() {
   esac
 }
 
+# True when a folder between $abs and the file is a symlink (dangling or not); mkdir -p and cp would
+# write into wherever it points.
+parent_is_symlink() {
+  local dir
+  dir="$(dirname -- "$1")"
+  while [ "$dir" != "." ]; do
+    if [ -L "$abs/$dir" ]; then
+      return 0
+    fi
+    dir="$(dirname -- "$dir")"
+  done
+  return 1
+}
+
 added=0
 updated=0
 kept=0
@@ -132,6 +153,9 @@ install_file() {
   local rel="$1" file="$src/$1" dest="$abs/$1"
   if [ -L "$dest" ]; then
     echo "skip $rel (symlink; never written through)"
+    kept=$((kept + 1))
+  elif parent_is_symlink "$rel"; then
+    echo "skip $rel (symlinked folder; never written through)"
     kept=$((kept + 1))
   elif [ -e "$dest" ]; then
     if cmp -s "$file" "$dest"; then
