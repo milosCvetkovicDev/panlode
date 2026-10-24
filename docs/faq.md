@@ -53,7 +53,8 @@ you write down why. If you need different defaults, change the constants and the
 
 Because the workspace is for deciding what to build. The `PreToolUse` hook refuses product files
 (TypeScript, JavaScript, Go, Rust, Java, C#, Terraform, SQL, `package.json`, lockfiles, Dockerfiles)
-outside `scripts/` and `.claude/`. An idea that reaches `go` gets its own repository.
+in the workspace. In `scripts/`, `.claude/` and `.git/` it asks you first instead, because the engine
+and its settings live there. An idea that reaches `go` gets its own repository.
 
 ## How do I update to a newer version?
 
