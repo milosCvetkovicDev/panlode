@@ -156,12 +156,13 @@ class HookEntryPointTest(unittest.TestCase):
         root.mkdir()
         (root / "scripts").symlink_to(base / "ext" / "scripts", target_is_directory=True)
         env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
-        for rel, decision in [(".claude/settings.json", "ask"), ("INDEX.md", "deny"), ("app.ts", "deny")]:
-            run = subprocess.run([sys.executable, "-I", "-B", str(root / "scripts" / "engine.py"), "hook", "pre-write"],
-                                 input=json.dumps(ev(root / rel)), capture_output=True, text=True, env=env, cwd=root)
-            self.assertEqual(run.returncode, 0, run.stderr)
-            out = json.loads(run.stdout or "{}").get("hookSpecificOutput", {})
-            self.assertEqual(out.get("permissionDecision"), decision, rel)
+        for engine in [root / "scripts" / "engine.py", root / "scripts" / ".." / "scripts" / "engine.py"]:
+            for rel, decision in [(".claude/settings.json", "ask"), ("INDEX.md", "deny"), ("app.ts", "deny")]:
+                run = subprocess.run([sys.executable, "-I", "-B", str(engine), "hook", "pre-write"],
+                                     input=json.dumps(ev(root / rel)), capture_output=True, text=True, env=env, cwd=root)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                out = json.loads(run.stdout or "{}").get("hookSpecificOutput", {})
+                self.assertEqual(out.get("permissionDecision"), decision, (engine, rel))
 
 
 class PostWriteTest(unittest.TestCase):
@@ -209,6 +210,24 @@ class IndexTest(unittest.TestCase):
             write_index(root)
         self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
         self.assertEqual(run_hook("stop", '{"stop_hook_active": false}', root, TODAY).exit_code, 2)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
+
+    def test_a_linked_index_is_refused_by_the_hooks_and_keeps_record_errors_visible(self):
+        root = make_workspace({SIG: to_markdown(valid_signal())}).resolve()
+        outside = make_workspace({"dotfile": "mine\n"}).resolve() / "dotfile"
+        (root / "INDEX.md").symlink_to(outside)
+        for path in [root / "INDEX.md", root / "index.md", "INDEX.md"]:
+            out = json.loads(pre_write(ev(path), root).stdout or "{}").get("hookSpecificOutput", {})
+            self.assertEqual(out.get("permissionDecision"), "deny", path)
+        f = valid_signal()
+        del f["pain"]
+        (root / SIG).write_text(to_markdown(f), encoding="utf-8")
+        result = post_write(ev(root / SIG), root)
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("pain", result.stderr)
+        self.assertIn("INDEX.md is a symlink", result.stderr)
+        (root / SIG).write_text(to_markdown(valid_signal()), encoding="utf-8")
+        self.assertIn("INDEX.md is a symlink", post_write(ev(root / SIG), root).stderr)
         self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
 
 

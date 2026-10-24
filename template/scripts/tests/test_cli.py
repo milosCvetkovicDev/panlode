@@ -54,6 +54,13 @@ class CliTest(unittest.TestCase):
         self.assertIn("INDEX.md is a symlink", err.getvalue())
         self.assertEqual(outside.read_text(encoding="utf-8"), "mine\n")
 
+    def test_index_replaces_a_file_that_is_not_utf8(self):
+        root = make_workspace({SIG: to_markdown(valid_signal())})
+        (root / "INDEX.md").write_bytes(b"\xff\xfe broken\n")
+        code, out = run("--root", str(root), "index")
+        self.assertEqual((code, out.strip()), (0, "INDEX.md updated"))
+        self.assertIn("Idea engine", (root / "INDEX.md").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

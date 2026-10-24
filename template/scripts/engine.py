@@ -5,6 +5,7 @@ Standard library only. Runs as `python3 scripts/engine.py ...` (Python 3.10 or n
 """
 
 import argparse
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -18,7 +19,7 @@ from ideaengine.text import slugify  # noqa: E402
 from ideaengine.workspace import check, load, next_id  # noqa: E402
 
 # Not resolved: scripts/ may be a symlink, and the workspace is the folder the engine was called through.
-DEFAULT_ROOT = Path(__file__).absolute().parent.parent
+DEFAULT_ROOT = Path(os.path.normpath(os.path.abspath(__file__))).parent.parent
 HOOKS = ("pre-write", "post-write", "stop", "session-start")
 
 
