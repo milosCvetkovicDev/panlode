@@ -273,8 +273,8 @@ class InstallTest(unittest.TestCase):
             self.assertIn("skip .claude/rules/ideas.md (symlinked folder", result.stdout, args)
             # One skip line among forty is easy to miss when the skipped files carry an update.
             rules = len(list((TEMPLATE / ".claude" / "rules").rglob("*.md")))  # not a stray .DS_Store
-            self.assertIn(f"warning: {rules} file(s) under symlinked folders were neither installed nor updated",
-                          result.stderr, args)
+            self.assertIn(f"warning: {rules} file(s) were neither installed nor updated because they or a folder "
+                          "above them are symlinks", result.stderr, args)
 
     def test_hooks_are_not_wired_to_an_engine_behind_a_dangling_symlink(self):
         # The hooks exit quietly when the engine is missing, so every guard would be off. The dry run must
@@ -326,9 +326,46 @@ class InstallTest(unittest.TestCase):
             self.assertIn("symlink to a folder that does not exist", result.stderr, target)
         self.assertFalse((REPO / "nx").exists())
 
+    def test_a_symlinked_file_counts_in_the_warning(self):
+        target = self.tmp / "w"
+        self.assertEqual(run_install(str(target)).returncode, 0)
+        mine = self.tmp / "my-engine.py"
+        shutil.move(str(target / "scripts" / "engine.py"), mine)
+        (target / "scripts" / "engine.py").symlink_to(mine)
+        result = run_install("--force", str(target))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("skip scripts/engine.py (symlink", result.stdout)
+        self.assertIn("warning: 1 file(s) were neither installed nor updated", result.stderr)
+
+    @unittest.skipIf(os.geteuid() == 0, "root can enter any folder")
+    def test_a_folder_that_cannot_be_entered_is_refused(self):
+        # cd fails inside $( ), where set -e is off, so the path used to collapse to /<rest>.
+        locked = self.tmp / "locked"
+        (locked / "h").mkdir(parents=True)
+        locked.chmod(0o600)
+        try:
+            result = run_install("--dry-run", str(locked / "newws"))
+            home = run_install("--dry-run", str(self.tmp / "w"), env_extra={"HOME": str(locked / "h")})
+        finally:
+            locked.chmod(0o700)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("cannot enter", result.stderr)
+        self.assertEqual(planned(result.stdout), [])
+        result = home
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("HOME (", result.stderr)
+
+    def test_a_home_that_cannot_be_resolved_is_named_as_home(self):
+        dang = self.tmp / "dang-home"
+        dang.symlink_to(self.tmp / "unmounted", target_is_directory=True)
+        result = run_install("--dry-run", str(self.tmp / "w"), env_extra={"HOME": str(dang)})
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(f"HOME ({dang})", result.stderr)
+        self.assertIn("set HOME to your home folder", result.stderr)
+
     def test_a_folder_under_the_root_is_spelled_with_one_slash(self):
         top = f"/ie-no-such-home-{os.getpid()}"
-        result = run_install(top, env_extra={"HOME": f"{top}/me"})
+        result = run_install("--dry-run", top, env_extra={"HOME": f"{top}/me"})
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(f"into {top}: a parent of your home folder", result.stderr)
 

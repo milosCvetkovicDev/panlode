@@ -100,7 +100,11 @@ resolve() {
       exit 2
       ;;
   esac
-  base="$(CDPATH='' cd -- "$path" && pwd -P)"
+  # Checked by hand: set -e is off inside $( ), and an empty base would turn the path into /<rest>.
+  if ! base="$(CDPATH='' cd -- "$path" && pwd -P)"; then
+    echo "install.sh: cannot enter $path; check its permissions or pass another path" >&2
+    exit 2
+  fi
   if [ "$base" = "/" ] && [ -n "$rest" ]; then
     base=""
   fi
@@ -139,7 +143,10 @@ if same_folder "$abs" "/"; then
   refuse "the root folder"
 fi
 if [ -n "${HOME:-}" ]; then
-  home="$(resolve "$HOME")"
+  if ! home="$(resolve "$HOME")"; then
+    echo "install.sh: HOME ($HOME) cannot be resolved; set HOME to your home folder and run again" >&2
+    exit 2
+  fi
   if same_folder "$abs" "$home"; then
     refuse "your home folder; pick a new folder such as $home/ideas"
   fi
@@ -213,6 +220,7 @@ install_file() {
   if [ -L "$dest" ]; then
     echo "skip $rel (symlink; never written through)"
     kept=$((kept + 1))
+    linked=$((linked + 1))
   elif parent_is_symlink "$rel"; then
     echo "skip $rel (symlinked folder; never written through)"
     kept=$((kept + 1))
@@ -251,7 +259,7 @@ while IFS= read -r -d '' file; do
 done < <(find "$src" -type f -print0 | sort -z)
 install_file ".claude/settings.json"
 if [ "$linked" -gt 0 ]; then
-  echo "warning: $linked file(s) under symlinked folders were neither installed nor updated (the skip lines above)" >&2
+  echo "warning: $linked file(s) were neither installed nor updated because they or a folder above them are symlinks (the skip lines above)" >&2
 fi
 
 generate_index=0
