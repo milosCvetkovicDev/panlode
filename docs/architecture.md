@@ -84,7 +84,7 @@ run in every workspace: `python3 -I -m unittest discover -s scripts/tests -t scr
 | Event | Handler | Blocks? |
 |---|---|---|
 | `SessionStart` | Adds the brief to Claude's context; appends an error count if the check fails. | No |
-| `PreToolUse` on `Write` and `Edit` | Denies: hand edits to `INDEX.md`; product code (`.ts`, `.js`, `.go`, `.rs`, `.java`, `.cs`, `.tf`, `.sql`, `package.json`, lockfiles, Dockerfiles...); a `Write` that would replace a record holding a different id. Asks you to confirm any write to `scripts/` or `.claude/`, because the hooks run that code and settings, even in `acceptEdits` and bypass modes. Paths outside the workspace pass. | Yes, with a reason Claude sees |
+| `PreToolUse` on `Write` and `Edit` | Denies: hand edits to `INDEX.md`; product code (`.ts`, `.js`, `.go`, `.rs`, `.java`, `.cs`, `.tf`, `.sql`, `package.json`, lockfiles, Dockerfiles...); a `Write` that would replace a record holding a different id. Asks you to confirm a write to `scripts/`, `.claude/`, `.git/` or `.mcp.json`, even in `acceptEdits` and bypass modes: the engine the hooks call, Claude Code settings, git hooks and MCP servers all run later without a prompt. The workspace is matched by identity, so another spelling of its path (case on macOS) does not count as outside. Paths outside the workspace pass. | Yes: Claude sees the reason for a deny, you see it for an ask |
 | `PostToolUse` on `Write` and `Edit` | Validates the written record; regenerates `INDEX.md`. Errors go back to Claude at once; warnings are added as context. | Reports, so Claude fixes it before moving on |
 | `Stop` | Regenerates `INDEX.md`; runs the full check; blocks once if errors remain, listing up to 20. Never blocks twice in the same stop cycle. | Once |
 

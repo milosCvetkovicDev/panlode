@@ -32,14 +32,20 @@ All notable changes to this project are documented here. The format follows
 
 Found by a pre-release audit and fixed before the first public release:
 
-- The `PreToolUse` hook asks before any edit to `scripts/` or `.claude/`. The hooks run that code and
-  those settings, so an unprompted edit there would become code that runs in every later session.
+- The `PreToolUse` hook asks before a `Write` or `Edit` to `scripts/`, `.claude/`, `.git/` or
+  `.mcp.json`. The engine the hooks call, Claude Code settings, git hooks and MCP servers run later
+  without a prompt, so an unprompted edit there would become code that runs in every later session.
+  Files written through the shell are outside the hooks, as before.
+- The hook finds the workspace by identity, so a path that spells it in another case (macOS volumes are
+  case-insensitive) no longer counts as outside it and skips every check.
 - The workspace settings pre-approve the exact engine commands (`check`, `index`, `brief`, `next-id`,
   `slug`) instead of a wildcard that also matched `--root` pointing at any folder.
-- `install.sh` refuses a path with a `..` after a folder that does not exist yet. Before, such a path
-  slipped past the home-folder guard.
-- `install.sh` never writes through a symlinked folder in the target either; before, only a symlinked
-  file was skipped.
+- `install.sh` compares the home, root and release folders by identity, and refuses a path with a
+  newline or with a `..` after a folder that does not exist yet. Before, each of these could slip past
+  the home-folder guard.
+- `install.sh` never writes through a symlinked folder in the target either (before, only a symlinked
+  file was skipped), warns with the count of files it skipped that way, and does not install
+  `.claude/settings.json` when `scripts/engine.py` is missing.
 
 [Unreleased]: https://github.com/milosCvetkovicDev/panlode/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/milosCvetkovicDev/panlode/releases/tag/v0.1.0
