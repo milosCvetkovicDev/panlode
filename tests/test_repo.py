@@ -28,15 +28,22 @@ def markdown_files() -> list[Path]:
     return [p for p in REPO.rglob("*.md") if not skip.intersection(p.relative_to(REPO).parts)]
 
 
+def pycache_dirs(root: Path) -> set[str]:
+    return {p.relative_to(root).as_posix() for p in root.rglob("__pycache__")}
+
+
 class EngineSuiteTest(unittest.TestCase):
     def test_template_engine_suite_passes(self):
+        # An earlier CI step may already have left __pycache__ folders, so only new ones count.
+        before = pycache_dirs(TEMPLATE)
         result = subprocess.run(
             [sys.executable, "-I", "-B", "-m", "unittest", "discover", "-s", "scripts/tests", "-t", "scripts"],
             cwd=TEMPLATE, capture_output=True, text=True, env=ENV, timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-        # -I ignores PYTHONDONTWRITEBYTECODE, so only -B keeps bytecode out of the shipped template.
-        self.assertEqual([p.relative_to(TEMPLATE).as_posix() for p in TEMPLATE.rglob("__pycache__")], [])
+        # -I ignores PYTHONDONTWRITEBYTECODE, so only -B keeps this run from writing bytecode into the shipped template.
+        added = sorted(pycache_dirs(TEMPLATE) - before)
+        self.assertEqual(added, [], f"the run created __pycache__ folders: {added}")
 
 
 class ExampleRunTest(unittest.TestCase):
