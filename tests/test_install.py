@@ -363,6 +363,17 @@ class InstallTest(unittest.TestCase):
         self.assertIn(f"HOME ({dang})", result.stderr)
         self.assertIn("set HOME to your home folder", result.stderr)
 
+    def test_an_unset_or_empty_home_is_refused(self):
+        for home in [None, ""]:
+            env = {k: v for k, v in os.environ.items() if k != "HOME"}
+            if home is not None:
+                env["HOME"] = home
+            result = subprocess.run([BASH, str(INSTALL), "--dry-run", str(self.tmp / "w")], capture_output=True,
+                                    text=True, env={**env, "PYTHONDONTWRITEBYTECODE": "1"}, timeout=60)
+            self.assertEqual(result.returncode, 2, (home, result.stdout + result.stderr))
+            self.assertIn("HOME is not set", result.stderr)
+            self.assertEqual(planned(result.stdout), [])
+
     def test_a_folder_under_the_root_is_spelled_with_one_slash(self):
         top = f"/ie-no-such-home-{os.getpid()}"
         result = run_install("--dry-run", top, env_extra={"HOME": f"{top}/me"})

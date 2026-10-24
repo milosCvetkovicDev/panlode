@@ -142,17 +142,19 @@ abs="$(resolve "$target")"
 if same_folder "$abs" "/"; then
   refuse "the root folder"
 fi
-if [ -n "${HOME:-}" ]; then
-  if ! home="$(resolve "$HOME")"; then
-    echo "install.sh: HOME ($HOME) cannot be resolved; set HOME to your home folder and run again" >&2
-    exit 2
-  fi
-  if same_folder "$abs" "$home"; then
-    refuse "your home folder; pick a new folder such as $home/ideas"
-  fi
-  if at_or_above "$home" "$abs"; then
-    refuse "a parent of your home folder"
-  fi
+if [ -z "${HOME:-}" ]; then
+  echo "install.sh: HOME is not set, so the home-folder guard cannot run; set HOME to your home folder" >&2
+  exit 2
+fi
+if ! home="$(resolve "$HOME")"; then
+  echo "install.sh: HOME ($HOME) cannot be resolved; set HOME to your home folder and run again" >&2
+  exit 2
+fi
+if same_folder "$abs" "$home"; then
+  refuse "your home folder; pick a new folder such as $home/ideas"
+fi
+if at_or_above "$home" "$abs"; then
+  refuse "a parent of your home folder"
 fi
 if at_or_above "$abs" "$here"; then
   refuse "it is inside the release that holds install.sh"

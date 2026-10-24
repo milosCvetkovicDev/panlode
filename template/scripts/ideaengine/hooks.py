@@ -8,6 +8,7 @@ a crash inside any hook is shown to Claude rather than swallowed.
 import json
 import os
 import re
+import tempfile
 import unicodedata
 from dataclasses import dataclass
 from datetime import date
@@ -73,6 +74,22 @@ def _file_path(event: dict) -> str | None:
     tool_input = event.get("tool_input")
     value = tool_input.get("file_path") if isinstance(tool_input, dict) else None
     return value if isinstance(value, str) and value else None
+
+
+def _absolute(file_path: str, event: dict, root: Path) -> str:
+    """The path as the tool reads it: ~ expanded, a relative path taken from the session's cwd."""
+    path = os.path.expanduser(file_path)
+    if os.path.isabs(path):
+        return path
+    cwd = event.get("cwd")
+    return os.path.join(cwd if isinstance(cwd, str) and os.path.isabs(cwd) else root, path)
+
+
+def _lexical_rel(file_path: str, root: Path) -> str | None:
+    """Workspace-relative path with .. collapsed before links are followed, as a tool that normalizes the
+    path first would write it; None outside the workspace."""
+    rel = _relative_by_identity(Path(os.path.normpath(os.path.join(root, file_path))), root)
+    return None if rel is None else _on_disk_case(root, rel)
 
 
 def _resolved(file_path: str, root: Path) -> Path:
@@ -169,14 +186,23 @@ def _is_product_file(rel: str) -> bool:
 
 def write_index(root: Path) -> bool:
     """Regenerate INDEX.md; write only when the content changed, so mtime stays put otherwise."""
-    content = render_index(load(root)[0])
+    data = render_index(load(root)[0]).encode("utf-8")
     path = root / INDEX_FILE
     if path.is_symlink():
         raise IndexLinkError(f"{INDEX_FILE} is a symlink; the index is never written through one, so replace the link "
-                      "with a plain file or remove it")
-    if path.is_file() and path.read_bytes() == content.encode("utf-8"):
+                             "with a plain file or remove it")
+    if path.is_file() and path.read_bytes() == data:
         return False
-    path.write_text(content, encoding="utf-8")
+    # A new file renamed over the old name, so a hard link to INDEX.md is never written through.
+    fd, tmp = tempfile.mkstemp(dir=root, prefix=f".{INDEX_FILE}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
     return True
 
 
@@ -184,18 +210,19 @@ def pre_write(event: dict, root: Path) -> HookResult:
     file_path = _file_path(event)
     if file_path is None:
         return HookResult(2, "", UNREADABLE_INPUT)
-    rel = _rel_path(file_path, root)
-    # The name as written too: INDEX.md may be a link that resolves out of the workspace.
-    lexical = _relative_by_identity(Path(os.path.normpath(os.path.join(root, file_path))), root)
-    if any(r is not None and r.casefold() == INDEX_FILE.casefold() for r in (rel, lexical)):
+    file_path = _absolute(file_path, event, root)
+    # Both readings of the path: with links followed (where the kernel writes) and with .. collapsed first
+    # (where a tool that normalizes the path writes). A link may lead either one out of the workspace.
+    names = [r for r in (_rel_path(file_path, root), _lexical_rel(file_path, root)) if r is not None]
+    if any(r.casefold() == INDEX_FILE.casefold() for r in names):
         return _deny(INDEX_REASON)
-    if (rel is not None and _is_guarded(rel)) or _in_guarded_place(_resolved(file_path, root), root):
+    if any(_is_guarded(r) for r in names) or _in_guarded_place(_resolved(file_path, root), root):
         return _guarded_decision(event)
-    if rel is None:
+    if not names:
         return HookResult()
-    if _is_product_file(rel):
+    if any(_is_product_file(r) for r in names):
         return _deny(PRODUCT_REASON)
-    reason = _overwrite_reason(event, root, rel)
+    reason = _overwrite_reason(event, root, names[0])
     return _deny(reason) if reason else HookResult()
 
 
@@ -216,7 +243,8 @@ def _overwrite_reason(event: dict, root: Path, rel: str) -> str | None:
 
 def post_write(event: dict, root: Path) -> HookResult:
     file_path = _file_path(event)
-    rel = _rel_path(file_path, root) if file_path else None
+    file_path = _absolute(file_path, event, root) if file_path else None
+    rel = (_rel_path(file_path, root) or _lexical_rel(file_path, root)) if file_path else None
     if rel is None or not is_record_path(rel):
         return HookResult()
     if not (root / rel).is_file():  # deleted or renamed before this hook ran
