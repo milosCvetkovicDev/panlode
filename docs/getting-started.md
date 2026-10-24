@@ -58,9 +58,10 @@ exists**. It prints a line for each file it adds (`add`) or leaves alone because
 symlink or it sits in a symlinked folder (`skip`), and a summary; it generates `INDEX.md` only when the
 folder has none. It refuses your home folder, the root folder and any parent of the home folder, in any
 spelling, because a workspace's `.claude/` and `CLAUDE.md` would then apply to every project below it.
-It also refuses a path with a newline or with a `..` after a folder that does not exist yet, and it
-does not install `.claude/settings.json` when `scripts/engine.py` is missing (for example behind a
-dangling `scripts/` symlink), because the hooks would then do nothing. Useful options:
+It also refuses a path with a newline, a `..` after a folder that does not exist yet, or a dangling
+symlink. Before it writes anything, dry run included, it stops when the engine or `.claude/settings.json`
+is missing behind a symlink in the folder (a dangling `scripts/` link, say), because the hooks would
+then do nothing. Useful options:
 
 | Option | Effect |
 |---|---|
