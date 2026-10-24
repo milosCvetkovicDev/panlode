@@ -166,6 +166,17 @@ class TemplateHygieneTest(unittest.TestCase):
                 if entry.startswith("Bash"):
                     self.assertIn(entry, ENGINE_RULES, path.relative_to(TEMPLATE))
 
+    def test_skills_that_draft_records_may_number_and_name_them(self):
+        for path in (TEMPLATE / ".claude").glob("skills/*/SKILL.md"):
+            _, header, body = path.read_text(encoding="utf-8").split("---", 2)
+            if "from `templates/" not in body:
+                continue
+            tools = re.search(r"^allowed-tools:(.*)$", header, re.M).group(1)
+            for rule in ("Bash(python3 scripts/engine.py next-id *)", "Bash(python3 scripts/engine.py slug *)"):
+                self.assertIn(rule, tools, path.relative_to(TEMPLATE))
+        log = (TEMPLATE / ".claude" / "skills" / "log-experiment" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Write(experiments/**)", log.split("---", 2)[1])
+
     def test_settings_pre_approve_only_exact_bash_commands(self):
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
         bash_rules = {r for r in settings["permissions"]["allow"] if r.startswith("Bash")}
