@@ -168,6 +168,28 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["home"])
         self.assertFalse((REPO / "nx").exists())
 
+    def test_newline_in_the_target_is_refused(self):
+        # $(dirname) strips a trailing newline, so "..<newline>" below a missing folder turned into a real ..
+        home = self.tmp / "home"
+        (home / "Documents").mkdir(parents=True)
+        result = run_install(f"{home}/Documents/..\n/.", env_extra={"HOME": str(home)})
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("newline", result.stderr)
+        self.assertEqual(sorted(p.name for p in home.iterdir()), ["Documents"])
+
+    def test_home_and_release_spelled_in_another_case_are_refused(self):
+        # macOS volumes are case-insensitive by default, and pwd -P keeps the case as typed.
+        home = self.tmp / "home"
+        home.mkdir()
+        if not (self.tmp / "HOME").is_dir():
+            self.skipTest("case-sensitive file system: HOME and home are different folders here")
+        runs = [(self.tmp / "HOME",), (self.tmp / "Home" / ".",), ("--dry-run", REPO.parent / REPO.name.upper() / "x")]
+        for *options, target in runs:
+            result = run_install(*options, str(target), env_extra={"HOME": str(home)})
+            self.assertEqual(result.returncode, 1, f"{target}: {result.stdout}{result.stderr}")
+            self.assertIn("refusing", result.stderr, target)
+        self.assertEqual(list(home.iterdir()), [])
+
     def test_dotdot_through_existing_folders_still_works(self):
         (self.tmp / "clone").mkdir()
         result = run_install("--dry-run", "../ideas", cwd=self.tmp / "clone")

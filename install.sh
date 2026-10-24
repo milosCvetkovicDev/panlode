@@ -59,6 +59,15 @@ case "$target" in
     exit 2
     ;;
 esac
+# $(dirname) and $(basename) strip trailing newlines, so a name ending in one would change the path.
+newline='
+'
+case "$target" in
+  *"$newline"*)
+    echo "install.sh: the target path contains a newline; pass a plain path" >&2
+    exit 2
+    ;;
+esac
 
 here="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 src="$here/template"
@@ -78,7 +87,8 @@ resolve() {
     rest="/$(basename -- "$path")$rest"
     path="$(dirname -- "$path")"
   done
-  # A .. below a missing folder cannot be resolved by cd and would slip past the string guards below.
+  # A .. below a missing folder can be neither resolved by cd nor compared by identity, so it would slip
+  # past the guards below.
   case "$rest/" in
     */../*)
       echo "install.sh: $1 has a .. after a folder that does not exist yet; pass a plain path" >&2
@@ -93,23 +103,43 @@ refuse() {
   exit 1
 }
 
+# Compared by identity (-ef: same device and inode) as well as by spelling: macOS volumes are
+# case-insensitive by default, so one folder has many spellings.
+same_folder() {
+  [ "$1" = "$2" ] || { [ -e "$1" ] && [ "$1" -ef "$2" ]; }
+}
+
+# True when the folder $2 is the absolute path $1 or one of the folders above it.
+at_or_above() {
+  local dir="$1"
+  while :; do
+    if same_folder "$dir" "$2"; then
+      return 0
+    fi
+    if [ "$dir" = "/" ]; then
+      return 1
+    fi
+    dir="$(dirname -- "$dir")"
+  done
+}
+
 # The workspace's .claude/ and CLAUDE.md would apply to every project below the target.
 abs="$(resolve "$target")"
-if [ "$abs" = "/" ]; then
+if same_folder "$abs" "/"; then
   refuse "the root folder"
 fi
 if [ -n "${HOME:-}" ]; then
   home="$(resolve "$HOME")"
-  if [ "$abs" = "$home" ]; then
+  if same_folder "$abs" "$home"; then
     refuse "your home folder; pick a new folder such as $home/ideas"
   fi
-  case "$home/" in
-    "$abs"/*) refuse "a parent of your home folder" ;;
-  esac
+  if at_or_above "$home" "$abs"; then
+    refuse "a parent of your home folder"
+  fi
 fi
-case "$abs/" in
-  "$here"/*) refuse "it is inside the release that holds install.sh" ;;
-esac
+if at_or_above "$abs" "$here"; then
+  refuse "it is inside the release that holds install.sh"
+fi
 if [ "$force" -eq 1 ] && { [ ! -f "$abs/scripts/engine.py" ] || [ ! -d "$abs/scripts/ideaengine" ]; }; then
   echo "install.sh: --force updates an existing workspace, and $abs is not one" \
     "(no scripts/engine.py and scripts/ideaengine/); run without --force to install" >&2
