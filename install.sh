@@ -82,8 +82,13 @@ fi
 
 # Absolute physical path of a folder that may not exist yet.
 resolve() {
-  local path="$1" rest=""
+  local path="$1" rest="" base
   while [ ! -d "$path" ]; do
+    # A link that leads to no folder is not followed here, so it would pass every guard below.
+    if [ -L "$path" ]; then
+      echo "install.sh: $path is a symlink to a folder that does not exist; pass a plain path" >&2
+      exit 2
+    fi
     rest="/$(basename -- "$path")$rest"
     path="$(dirname -- "$path")"
   done
@@ -95,7 +100,11 @@ resolve() {
       exit 2
       ;;
   esac
-  printf '%s%s\n' "$(CDPATH='' cd -- "$path" && pwd -P)" "$rest"
+  base="$(CDPATH='' cd -- "$path" && pwd -P)"
+  if [ "$base" = "/" ] && [ -n "$rest" ]; then
+    base=""
+  fi
+  printf '%s%s\n' "$base" "$rest"
 }
 
 refuse() {
@@ -111,15 +120,16 @@ same_folder() {
 
 # True when the folder $2 is the absolute path $1 or one of the folders above it.
 at_or_above() {
-  local dir="$1"
+  local dir="$1" up
   while :; do
     if same_folder "$dir" "$2"; then
       return 0
     fi
-    if [ "$dir" = "/" ]; then
+    up="$(dirname -- "$dir")"
+    if [ "$up" = "$dir" ]; then  # the top: / (or // where that is a root of its own)
       return 1
     fi
-    dir="$(dirname -- "$dir")"
+    dir="$up"
   done
 }
 
@@ -176,6 +186,24 @@ parent_is_symlink() {
   return 1
 }
 
+# True when $abs/$1 is a file now or this run adds it; nothing is written behind a symlink.
+present_after() {
+  [ -f "$abs/$1" ] || { [ ! -e "$abs/$1" ] && [ ! -L "$abs/$1" ] && ! parent_is_symlink "$1"; }
+}
+
+# The hooks exit quietly without the engine, and .claude/settings.json is what wires them, so without
+# either every guard would be off without a word. Checked before anything is written, dry run included.
+if ! present_after "scripts/engine.py" || ! present_after "scripts/ideaengine/__init__.py"; then
+  echo "install.sh: scripts/engine.py or scripts/ideaengine/ in $abs is missing behind a symlink, and the" \
+    "hooks do nothing without the engine; nothing was installed. Fix the link and run again." >&2
+  exit 1
+fi
+if ! present_after ".claude/settings.json"; then
+  echo "install.sh: .claude/settings.json in $abs is missing behind a symlink, so no hook is wired;" \
+    "nothing was installed. Fix the link and run again." >&2
+  exit 1
+fi
+
 added=0
 updated=0
 kept=0
@@ -221,16 +249,10 @@ while IFS= read -r -d '' file; do
   fi
   install_file "$rel"
 done < <(find "$src" -type f -print0 | sort -z)
+install_file ".claude/settings.json"
 if [ "$linked" -gt 0 ]; then
   echo "warning: $linked file(s) under symlinked folders were neither installed nor updated (the skip lines above)" >&2
 fi
-# The hooks exit quietly without the engine, so every guard would be off without a word.
-if [ "$dry" -eq 0 ] && [ ! -f "$abs/scripts/engine.py" ]; then
-  echo "install.sh: $abs/scripts/engine.py is missing (is scripts/ a symlink?); .claude/settings.json was" \
-    "not installed, because the hooks would do nothing without the engine" >&2
-  exit 1
-fi
-install_file ".claude/settings.json"
 
 generate_index=0
 if [ ! -e "$abs/INDEX.md" ] && [ ! -L "$abs/INDEX.md" ]; then
