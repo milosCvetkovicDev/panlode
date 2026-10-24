@@ -14,6 +14,9 @@ REPO = Path(__file__).resolve().parents[1]
 TEMPLATE = REPO / "template"
 EXAMPLE = REPO / "examples" / "first-scout-run"
 ENGINE = TEMPLATE / "scripts" / "engine.py"
+ISSUE_FORMS = REPO / ".github" / "ISSUE_TEMPLATE"
+FORM_LINK = re.compile(r"(https?://[\w.-]+/[\w.-]+/[\w.-]+)/issues/new\?[^)\s]*?\btemplate=([\w-]+(?:\.[\w-]+)*)")
+FORM_FIELD_TYPES = {"markdown", "textarea", "input", "dropdown", "checkboxes"}
 ENV = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
 ENGINE_GUARD = '[ -f "$CLAUDE_PROJECT_DIR/scripts/engine.py" ] || exit 0; '
 # Exact rules: a bare wildcard would also pre-approve `--root <any folder>`, which reads and writes outside the workspace.
@@ -34,6 +37,18 @@ def engine(*args: str) -> subprocess.CompletedProcess:
 def markdown_files() -> list[Path]:
     skip = {".git", "node_modules", "_site", ".jekyll-cache"}
     return [p for p in REPO.rglob("*.md") if not skip.intersection(p.relative_to(REPO).parts)]
+
+
+def issue_forms() -> list[Path]:
+    return [f for f in ISSUE_FORMS.glob("*.yml") if f.name != "config.yml"]
+
+
+def issue_form_links() -> list[tuple[Path, str, str]]:
+    found = []
+    for path in markdown_files():
+        text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+        found += [(path, repo, name) for repo, name in FORM_LINK.findall(text)]
+    return found
 
 
 def pycache_dirs(root: Path) -> set[str]:
@@ -90,6 +105,37 @@ class MarkdownLinkTest(unittest.TestCase):
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 if "--root examples/" in line:
                     self.assertIn("template/scripts/engine.py", line, f"{path.relative_to(REPO)}:{number}")
+
+    def test_issue_forms_have_the_shape_github_needs(self):
+        for form in issue_forms():
+            text = form.read_text(encoding="utf-8")
+            for key in ("name", "description", "body"):
+                self.assertRegex(text, rf"(?m)^{key}:", form.name)
+            types = re.findall(r"(?m)^  - type: (\S+)$", text)
+            self.assertTrue(set(types) <= FORM_FIELD_TYPES, f"{form.name}: {types}")
+            self.assertTrue(set(types) - {"markdown"}, f"{form.name} has no input field")
+            ids = re.findall(r"(?m)^    id: (\S+)$", text)
+            self.assertEqual(len(ids), len(set(ids)), f"{form.name}: duplicate ids {ids}")
+            for field_id in ids:
+                self.assertRegex(field_id, r"^[A-Za-z0-9_-]+$", form.name)
+
+    def test_issue_form_links_name_existing_forms(self):
+        forms = {f.name for f in issue_forms()}
+        for path, repo, name in issue_form_links():
+            where = f"{path.relative_to(REPO)}: {repo} {name}"
+            self.assertEqual(repo.lower(), "https://github.com/miloscvetkovicdev/panlode", where)
+            self.assertIn(name, forms, where)
+
+    def test_the_readme_links_the_share_a_run_form(self):
+        names = [name for path, _, name in issue_form_links() if path == REPO / "README.md"]
+        self.assertIn("share_a_run.yml", names)
+
+    def test_the_share_a_run_form_asks_to_confirm_nothing_private_is_shared(self):
+        text = (ISSUE_FORMS / "share_a_run.yml").read_text(encoding="utf-8")
+        fields = re.split(r"(?m)^  - type: ", text)[1:]
+        confirm = [f for f in fields if f.startswith("checkboxes") and "personal data" in f]
+        self.assertEqual(len(confirm), 1, "a checkboxes field that names personal data")
+        self.assertRegex(confirm[0], r"(?m)^ +required: true$")
 
     def test_every_relative_link_resolves(self):
         broken = []

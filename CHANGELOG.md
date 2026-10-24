@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows
   decomposition (`đ`, `æ`, `œ`, `ø`, `ł`, `þ`, `ð`), from NFC and NFD input alike.
 - Documentation site with a comparison page, and CI on Python 3.10 to 3.15 (Linux) and on macOS with
   its bash 3.2.
+- A roadmap in the README and a "Share a run" issue form for reporting what a run found.
 
 ### Security
 

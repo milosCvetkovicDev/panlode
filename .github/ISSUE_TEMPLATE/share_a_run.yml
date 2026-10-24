@@ -1,0 +1,44 @@
+name: Share a run
+description: Tell us what a scouting run or an experiment found, including the ideas it killed.
+title: "Run report: "
+labels: [run-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Run reports show what works and what does not, and they help decide the next recipes and rules.
+        This issue is public, and edits stay visible in its history. Summarise in your own words: no
+        personal data about anyone, no usernames, contact details or links to individual posts, no
+        quoted forum or review text, no customer names, keys or tokens, nothing under an NDA. An idea
+        you describe here becomes public.
+  - type: textarea
+    id: focus
+    attributes:
+      label: What you scouted
+      description: The focus of the run and the recipes you used (forums, review sites, job posts, your own).
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What it found
+      description: How many signals, their evidence scores, the clusters, and any idea shaped or killed. A summary, not the raw signals.
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What got in the way
+      description: A rule that was too strict or too loose, a recipe that came back empty. Something broken goes in a bug report instead.
+  - type: input
+    id: link
+    attributes:
+      label: Public link (optional)
+      description: A public repository or write-up of the run, if there is one.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report holds no personal data, contact details, quoted third-party text, credentials or NDA material.
+          required: true

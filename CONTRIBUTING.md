@@ -1,7 +1,9 @@
 # Contributing
 
 Thanks for taking the time. Bug reports, recipe improvements and small, focused pull requests are all
-welcome.
+welcome. Tried Panlode on your own ideas? A
+[run report](https://github.com/milosCvetkovicDev/panlode/issues/new?template=share_a_run.yml) of what
+it found, including the ideas it killed, helps decide what comes next.
 
 ## Ground rules
 
