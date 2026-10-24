@@ -16,6 +16,14 @@ EXAMPLE = REPO / "examples" / "first-scout-run"
 ENGINE = TEMPLATE / "scripts" / "engine.py"
 ENV = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
 ENGINE_GUARD = '[ -f "$CLAUDE_PROJECT_DIR/scripts/engine.py" ] || exit 0; '
+# Exact rules: a bare wildcard would also pre-approve `--root <any folder>`, which reads and writes outside the workspace.
+ENGINE_RULES = {
+    "Bash(python3 scripts/engine.py check)",
+    "Bash(python3 scripts/engine.py index)",
+    "Bash(python3 scripts/engine.py brief)",
+    "Bash(python3 scripts/engine.py next-id *)",
+    "Bash(python3 scripts/engine.py slug *)",
+}
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)|!\[[^\]]*\]\(([^)\s]+)\)")
 
 
@@ -156,7 +164,21 @@ class TemplateHygieneTest(unittest.TestCase):
             entries = re.findall(r"[A-Za-z]+(?:\([^)]*\))?", line.group(1)) if line else []
             for entry in entries:
                 if entry.startswith("Bash"):
-                    self.assertEqual(entry, "Bash(python3 scripts/engine.py *)", path.relative_to(TEMPLATE))
+                    self.assertIn(entry, ENGINE_RULES, path.relative_to(TEMPLATE))
+
+    def test_settings_pre_approve_only_the_exact_engine_commands(self):
+        settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        engine_rules = {r for r in settings["permissions"]["allow"] if "engine.py" in r}
+        self.assertEqual(engine_rules, ENGINE_RULES)
+
+    def test_wildcard_engine_rules_cannot_reach_another_root(self):
+        # `next-id *` and `slug *` stay inside the workspace only because --root is refused after the subcommand.
+        with tempfile.TemporaryDirectory(prefix="ie-root-") as other:
+            for args in (["next-id", "sig", "--root", other], ["slug", "x", "--root", other]):
+                result = engine(*args)
+                self.assertEqual(result.returncode, 2, args)
+                self.assertIn("unrecognized arguments", result.stderr, args)
+            self.assertEqual(os.listdir(other), [])
 
     def test_slug_commands_single_quote_the_title(self):
         # Titles come from scraped pages; inside double quotes a $( ) or backtick would still run.
@@ -164,6 +186,8 @@ class TemplateHygieneTest(unittest.TestCase):
         for path in files:
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 for match in re.finditer(r"(\S*)engine\.py slug (\S)", line):
+                    if line[:match.start()].endswith("Bash(python3 "):
+                        continue  # a permission rule, not a command
                     where = f"{path.relative_to(REPO)}:{number}"
                     self.assertTrue(match.group(1).endswith("scripts/"), where)
                     self.assertIn("python3 ", line[:match.start() + 1].rsplit("`", 1)[-1], where)

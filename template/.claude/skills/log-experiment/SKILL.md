@@ -3,7 +3,7 @@ name: log-experiment
 description: Append a dated entry to an experiment's log, update its result when the note carries counts, and force a continue, pivot or kill decision once its deadline has passed or its success metric is met.
 disable-model-invocation: true
 argument-hint: "<exp-id> <note>"
-allowed-tools: Read, Edit, Glob, AskUserQuestion, Bash(python3 scripts/engine.py *)
+allowed-tools: Read, Edit, Glob, AskUserQuestion, Bash(python3 scripts/engine.py check)
 ---
 
 # /log-experiment

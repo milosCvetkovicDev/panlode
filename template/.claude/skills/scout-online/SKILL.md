@@ -3,7 +3,7 @@ name: scout-online
 description: Sweep online sources for demand signals with up to three parallel signal-scout agents (freelance job posts, review sites, Reddit and forums), then write the checked candidates to signals/ with status new and print a digest.
 disable-model-invocation: true
 argument-hint: "[focus, e.g. 'accounting firms e-invoicing' or 'ecommerce ops']"
-allowed-tools: Read, Glob, Grep, WebSearch, Agent, Write(signals/**), Edit(signals/**), Bash(python3 scripts/engine.py *)
+allowed-tools: Read, Glob, Grep, WebSearch, Agent, Write(signals/**), Edit(signals/**), Bash(python3 scripts/engine.py next-id *), Bash(python3 scripts/engine.py slug *), Bash(python3 scripts/engine.py check)
 ---
 
 # /scout-online
